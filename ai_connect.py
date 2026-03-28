@@ -1,100 +1,124 @@
 """
-ai_connect.py — provider-agnostic AI vision client.
+ai_connect.py — provider-agnostic AI vision client built on LangChain.
 
-Supported providers: "anthropic", "openai"
+Supported providers:
+  AnthropicConfig   — Claude via Anthropic API
+  OpenAIConfig      — GPT via OpenAI API
+  OpenRouterConfig  — Any model via OpenRouter (uses OpenAI-compatible API)
 
 Usage:
-    ai = AIConnect(system_prompt=SYSTEM_PROMPT)
+    from ai_connect import AIConnect, AnthropicConfig
+
+    ai = AIConnect(
+        system_prompt=SYSTEM_PROMPT,
+        config=AnthropicConfig(api_key="sk-ant-..."),
+    )
     response = ai.ask(image_b64="...", prompt="The student is solving: 3/4 + 1/6")
+
+OpenRouter example:
+    ai = AIConnect(
+        system_prompt=SYSTEM_PROMPT,
+        config=OpenRouterConfig(
+            api_key="sk-or-...",
+            model="google/gemini-flash-1.5",
+        ),
+    )
 """
 
-import os
+from __future__ import annotations
 
+from dataclasses import dataclass, field
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
+
+# ── Provider config dataclasses ──────────────────────────────────────────────
+
+@dataclass
+class AnthropicConfig:
+    api_key: str
+    model: str = "claude-sonnet-4-6"
+    max_tokens: int = 100
+
+
+@dataclass
+class OpenAIConfig:
+    api_key: str
+    model: str = "gpt-4o"
+    max_tokens: int = 100
+
+
+@dataclass
+class OpenRouterConfig:
+    api_key: str
+    model: str = "anthropic/claude-sonnet-4-6"
+    max_tokens: int = 100
+    base_url: str = "https://openrouter.ai/api/v1"
+    referer: str = "https://github.com/inktutor"
+    app_title: str = "InkTutor"
+
+
+ProviderConfig = AnthropicConfig | OpenAIConfig | OpenRouterConfig
+
+
+# ── LLM factory ──────────────────────────────────────────────────────────────
+
+def _build_llm(config: ProviderConfig):
+    if isinstance(config, AnthropicConfig):
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=config.model,
+            max_tokens=config.max_tokens,
+            anthropic_api_key=config.api_key,
+        )
+
+    if isinstance(config, OpenAIConfig):
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=config.model,
+            max_tokens=config.max_tokens,
+            openai_api_key=config.api_key,
+        )
+
+    if isinstance(config, OpenRouterConfig):
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=config.model,
+            max_tokens=config.max_tokens,
+            openai_api_key=config.api_key,
+            openai_api_base=config.base_url,
+            default_headers={
+                "HTTP-Referer": config.referer,
+                "X-Title": config.app_title,
+            },
+        )
+
+    raise TypeError(f"Unsupported config type: {type(config)}")
+
+
+# ── Main class ────────────────────────────────────────────────────────────────
 
 class AIConnect:
-    def __init__(
-        self,
-        system_prompt: str,
-        provider: str | None = None,
-        model: str | None = None,
-        max_tokens: int = 100,
-    ):
+    def __init__(self, system_prompt: str, config: ProviderConfig):
         """
         Args:
             system_prompt: Instruction context sent with every request.
-            provider:      "anthropic" or "openai". Defaults to env var
-                           AI_PROVIDER, then "anthropic".
-            model:         Model ID. Defaults to env var AI_MODEL, then a
-                           sensible default per provider.
-            max_tokens:    Maximum tokens in the response.
+            config:        One of AnthropicConfig, OpenAIConfig, or OpenRouterConfig.
         """
         self.system_prompt = system_prompt
-        self.provider = (provider or os.getenv("AI_PROVIDER", "anthropic")).lower()
-        self.max_tokens = max_tokens
-
-        if model:
-            self.model = model
-        elif os.getenv("AI_MODEL"):
-            self.model = os.environ["AI_MODEL"]
-        elif self.provider == "openai":
-            self.model = "gpt-4o"
-        else:
-            self.model = "claude-sonnet-4-6"
+        self._llm = _build_llm(config)
 
     def ask(self, image_b64: str, prompt: str) -> str:
         """Send a base64-encoded PNG and a text prompt; return the response."""
-        if self.provider == "openai":
-            return self._ask_openai(image_b64, prompt)
-        return self._ask_anthropic(image_b64, prompt)
-
-    # ── Anthropic ────────────────────────────────────────────────────────────
-
-    def _ask_anthropic(self, image_b64: str, prompt: str) -> str:
-        import anthropic
-
-        client = anthropic.Anthropic()
-        response = client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=self.system_prompt,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/png",
-                            "data": image_b64,
-                        },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            }],
-        )
-        return response.content[0].text.strip()
-
-    # ── OpenAI ───────────────────────────────────────────────────────────────
-
-    def _ask_openai(self, image_b64: str, prompt: str) -> str:
-        import openai
-
-        client = openai.OpenAI()
-        response = client.chat.completions.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
+        messages = [
+            SystemMessage(content=self.system_prompt),
+            HumanMessage(content=[
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
                 },
-            ],
-        )
-        return response.choices[0].message.content.strip()
+                {"type": "text", "text": prompt},
+            ]),
+        ]
+        response = self._llm.invoke(messages)
+        return response.content.strip()

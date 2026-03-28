@@ -62,7 +62,8 @@ python pen_host.py
 - Accumulates dots into a stroke buffer
 - Fires when pen has been idle for `PAUSE_THRESHOLD_SECONDS`
 - Renders dots onto a white 1200×900 canvas using Pillow
-- Sends the PNG + problem text to Claude vision (`claude-sonnet-4-6`)
+- Sends the PNG + problem text to an AI vision model via LangChain
+- Provider configured via a typed dataclass passed to `AIConnect`
 - Speaks the response via `pyttsx3` (default) or ElevenLabs
 - Resets idle timer after each AI call
 
@@ -70,11 +71,35 @@ python pen_host.py
 
 | Variable                  | Default   | Description                       |
 |---------------------------|-----------|-----------------------------------|
-| `ANTHROPIC_API_KEY`       | required  | Claude API key                    |
+| `ANTHROPIC_API_KEY`       | required  | Claude API key (read in tutor.py) |
 | `PAUSE_THRESHOLD_SECONDS` | `3.0`     | Idle time before AI fires         |
 | `TTS_ENGINE`              | `pyttsx3` | `pyttsx3` or `elevenlabs`         |
 | `ELEVENLABS_API_KEY`      | —         | Required if TTS_ENGINE=elevenlabs |
 | `ELEVENLABS_VOICE_ID`     | `Rachel`  | ElevenLabs voice                  |
+
+## Switching AI Provider
+
+Edit the `AIConnect` instantiation in `tutor.py`. All provider options live in `ai_connect.py`:
+
+```python
+# Anthropic (default)
+from ai_connect import AIConnect, AnthropicConfig
+ai = AIConnect(system_prompt=SYSTEM_PROMPT,
+               config=AnthropicConfig(api_key="sk-ant-..."))
+
+# OpenAI
+from ai_connect import AIConnect, OpenAIConfig
+ai = AIConnect(system_prompt=SYSTEM_PROMPT,
+               config=OpenAIConfig(api_key="sk-...", model="gpt-4o"))
+
+# OpenRouter — swap any vision model without changing anything else
+from ai_connect import AIConnect, OpenRouterConfig
+ai = AIConnect(system_prompt=SYSTEM_PROMPT,
+               config=OpenRouterConfig(
+                   api_key="sk-or-...",
+                   model="google/gemini-flash-1.5",   # or any OpenRouter model ID
+               ))
+```
 
 ## AI Tutor Behaviour
 
