@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InkTutor Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: #16213e; border-bottom: 1px solid #0f3460; }
+  header h1 { font-size: 18px; font-weight: 600; color: #e94560; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .status-dot.connected { background: #4ecca3; }
+  .status-dot.disconnected { background: #e94560; }
+  button { background: #0f3460; color: #e0e0e0; border: 1px solid #e94560; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  button:hover { background: #e94560; }
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .canvas-panel { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; background: #1a1a2e; }
+  canvas { background: #fff; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); max-width: 100%; max-height: 100%; }
+  .sidebar { width: 300px; display: flex; flex-direction: column; border-left: 1px solid #0f3460; background: #16213e; }
+  .stats { padding: 16px; border-bottom: 1px solid #0f3460; }
+  .stats h2, .ai-log h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #e94560; margin-bottom: 12px; }
+  .stat-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .stat-label { color: #8a8a9a; }
+  .stat-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pause-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .pause-badge.writing { background: #4ecca320; color: #4ecca3; }
+  .pause-badge.paused { background: #f0a50020; color: #f0a500; }
+  .pause-badge.thinking { background: #e9456020; color: #e94560; }
+  .ai-log { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; }
+  .ai-log-entries { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .ai-entry { background: #1a1a2e; border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.4; }
+  .ai-entry .time { color: #8a8a9a; font-size: 11px; margin-bottom: 2px; }
+  .ai-entry .text { color: #e0e0e0; }
+  .ai-entry.silent .text { color: #8a8a9a; font-style: italic; }
+</style>
+</head>
+<body>
+<header>
+  <h1>InkTutor Dashboard</h1>
+  <div class="status">
+    <span class="status-dot disconnected" id="statusDot"></span>
+    <span id="statusText">Disconnected</span>
+    <button onclick="clearSession()">Clear</button>
+  </div>
+</header>
+<div class="main">
+  <div class="canvas-panel">
+    <canvas id="canvas" width="1200" height="900"></canvas>
+  </div>
+  <div class="sidebar">
+    <div class="stats">
+      <h2>Stats</h2>
+      <div class="stat-row"><span class="stat-label">Dots</span><span class="stat-value" id="dotCount">0</span></div>
+      <div class="stat-row"><span class="stat-label">Dots/sec</span><span class="stat-value" id="dotsPerSec">0</span></div>
+      <div class="stat-row"><span class="stat-label">Avg pressure</span><span class="stat-value" id="avgPressure">--</span></div>
+      <div class="stat-row"><span class="stat-label">Last dot</span><span class="stat-value" id="lastDot">--</span></div>
+      <div class="stat-row"><span class="stat-label">Status</span><span class="stat-value"><span class="pause-badge paused" id="pauseBadge">IDLE</span></span></div>
+    </div>
+    <div class="ai-log">
+      <h2>AI Responses</h2>
+      <div class="ai-log-entries" id="aiLog">
+        <div class="ai-entry silent"><div class="text">Waiting for AI responses...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+ctx.fillStyle = "#fff";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+const PADDING = 80;
+const PAUSE_THRESHOLD = 3.0;
+const CANVAS_W = canvas.width - PADDING * 2;
+const CANVAS_H = canvas.height - PADDING * 2;
+
+let allDots = [];
+let bounds = { xMin: Infinity, xMax: -Infinity, yMin: Infinity, yMax: -Infinity };
+let lastDotTs = 0;
+let pressureSum = 0;
+let recentDotTimestamps = [];
+
+// --- Normalization & Drawing ---
+
+function updateBounds(dots) {
+  let changed = false;
+  for (const d of dots) {
+    if (d.x < bounds.xMin) { bounds.xMin = d.x; changed = true; }
+    if (d.x > bounds.xMax) { bounds.xMax = d.x; changed = true; }
+    if (d.y < bounds.yMin) { bounds.yMin = d.y; changed = true; }
+    if (d.y > bounds.yMax) { bounds.yMax = d.y; changed = true; }
+  }
+  return changed;
+}
+
+function toCanvas(dot) {
+  const xRange = Math.max(bounds.xMax - bounds.xMin, 1);
+  const yRange = Math.max(bounds.yMax - bounds.yMin, 1);
+  return {
+    cx: PADDING + ((dot.x - bounds.xMin) / xRange) * CANVAS_W,
+    cy: PADDING + ((dot.y - bounds.yMin) / yRange) * CANVAS_H,
+  };
+}
+
+function drawDot(dot) {
+  const { cx, cy } = toCanvas(dot);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+}
+
+function redrawAll() {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const dot of allDots) drawDot(dot);
+}
+
+// --- Stats ---
+
+function updateStats() {
+  document.getElementById("dotCount").textContent = allDots.length.toLocaleString();
+
+  const now = Date.now() / 1000;
+  recentDotTimestamps = recentDotTimestamps.filter(t => now - t < 1);
+  document.getElementById("dotsPerSec").textContent = recentDotTimestamps.length;
+
+  if (allDots.length > 0) {
+    document.getElementById("avgPressure").textContent = Math.round(pressureSum / allDots.length);
+  }
+
+  if (lastDotTs > 0) {
+    const elapsed = now - lastDotTs;
+    if (elapsed < 60) {
+      document.getElementById("lastDot").textContent = elapsed.toFixed(1) + "s ago";
+    } else {
+      document.getElementById("lastDot").textContent = Math.floor(elapsed / 60) + "m ago";
+    }
+
+    const badge = document.getElementById("pauseBadge");
+    if (elapsed < 0.5) {
+      badge.textContent = "WRITING";
+      badge.className = "pause-badge writing";
+    } else if (elapsed < PAUSE_THRESHOLD) {
+      badge.textContent = "PAUSED";
+      badge.className = "pause-badge paused";
+    } else {
+      badge.textContent = "AI THINKING";
+      badge.className = "pause-badge thinking";
+    }
+  }
+}
+
+// --- AI Log ---
+
+function appendAiEntries(entries) {
+  const log = document.getElementById("aiLog");
+  // Remove placeholder on first real entry
+  if (log.children.length === 1 && log.children[0].classList.contains("silent") && entries.length > 0) {
+    log.innerHTML = "";
+  }
+  for (const entry of entries) {
+    const div = document.createElement("div");
+    const isSilent = entry.feedback.toUpperCase() === "OK";
+    div.className = "ai-entry" + (isSilent ? " silent" : "");
+    const time = new Date(entry.ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    div.innerHTML = `<div class="time">${time} &middot; ${entry.dot_count} dots</div><div class="text">${isSilent ? "(silence — work looks correct)" : escapeHtml(entry.feedback)}</div>`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function escapeHtml(text) {
+  const d = document.createElement("div");
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// --- WebSocket ---
+
+let ws;
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById("statusDot").className = "status-dot connected";
+    document.getElementById("statusText").textContent = "Connected";
+  };
+
+  ws.onclose = () => {
+    document.getElementById("statusDot").className = "status-dot disconnected";
+    document.getElementById("statusText").textContent = "Disconnected";
+    setTimeout(connectWS, 1000);
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+
+    if (msg.type === "dots") {
+      const newDots = msg.data;
+      const prevLen = allDots.length;
+      allDots.push(...newDots);
+
+      for (const d of newDots) {
+        pressureSum += d.pressure || 0;
+        if (d.ts > lastDotTs) lastDotTs = d.ts;
+        recentDotTimestamps.push(d.ts);
+      }
+
+      const boundsChanged = updateBounds(newDots);
+      if (boundsChanged && prevLen > 0) {
+        redrawAll();
+      } else {
+        for (const dot of newDots) drawDot(dot);
+      }
+
+      updateStats();
+    }
+
+    if (msg.type === "ai_response") {
+      appendAiEntries(msg.data);
+    }
+  };
+}
+
+// --- Clear ---
+
+async function clearSession() {
+  try {
+    await fetch("/clear", { method: "POST" });
+  } catch (e) { /* ignore */ }
+  allDots = [];
+  bounds = { xMin: Infinity, xMax: -Infinity, yMin: Infinity, yMax: -Infinity };
+  lastDotTs = 0;
+  pressureSum = 0;
+  recentDotTimestamps = [];
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  document.getElementById("dotCount").textContent = "0";
+  document.getElementById("dotsPerSec").textContent = "0";
+  document.getElementById("avgPressure").textContent = "--";
+  document.getElementById("lastDot").textContent = "--";
+  document.getElementById("pauseBadge").textContent = "IDLE";
+  document.getElementById("pauseBadge").className = "pause-badge paused";
+  document.getElementById("aiLog").innerHTML = '<div class="ai-entry silent"><div class="text">Waiting for AI responses...</div></div>';
+}
+
+// --- Init ---
+
+connectWS();
+setInterval(updateStats, 200);
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@ from ai_connect import AIConnect, AnthropicConfig
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
+AI_LOG_FILE         = Path("/tmp/inktutor/ai_responses.jsonl")
 PAUSE_THRESHOLD     = float(os.getenv("PAUSE_THRESHOLD_SECONDS", "3.0"))
 CANVAS_SIZE         = (1200, 900)
 DOT_RADIUS          = 3
@@ -89,6 +90,13 @@ def render_strokes(dots: list[dict]) -> str:
 
 
 
+def log_ai_response(feedback: str, dot_count: int):
+    """Append AI response to log file for dashboard consumption."""
+    entry = {"ts": time.time(), "feedback": feedback, "dot_count": dot_count}
+    with open(AI_LOG_FILE, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
 def speak(text: str):
     """Speak text using the configured TTS engine."""
     if text.upper() == "OK":
@@ -142,6 +150,7 @@ async def main():
                 image_b64 = render_strokes(strokes)
                 prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
                 feedback = ai.ask(image_b64, prompt)
+                log_ai_response(feedback, len(strokes))
                 print(f"AI: {feedback}")
                 speak(feedback)
                 last_dot_time = 0.0  # reset so we don't fire again immediately

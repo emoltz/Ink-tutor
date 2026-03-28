@@ -12,5 +12,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY tutor.py .
+COPY ai_connect.py .
+COPY dashboard.py .
+COPY static/ static/
 
 CMD ["python", "tutor.py"]
