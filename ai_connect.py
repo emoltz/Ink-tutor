@@ -1,100 +1,112 @@
 """
 ai_connect.py — provider-agnostic AI vision client built on LangChain.
 
-Supported providers (set via AI_PROVIDER env var or constructor arg):
-  "anthropic"   — Claude via Anthropic API  (requires ANTHROPIC_API_KEY)
-  "openai"      — GPT via OpenAI API        (requires OPENAI_API_KEY)
-  "openrouter"  — Any model via OpenRouter  (requires OPENROUTER_API_KEY)
+Supported providers:
+  AnthropicConfig   — Claude via Anthropic API
+  OpenAIConfig      — GPT via OpenAI API
+  OpenRouterConfig  — Any model via OpenRouter (uses OpenAI-compatible API)
 
 Usage:
-    ai = AIConnect(system_prompt=SYSTEM_PROMPT)
+    from ai_connect import AIConnect, AnthropicConfig
+
+    ai = AIConnect(
+        system_prompt=SYSTEM_PROMPT,
+        config=AnthropicConfig(api_key="sk-ant-..."),
+    )
     response = ai.ask(image_b64="...", prompt="The student is solving: 3/4 + 1/6")
 
-OpenRouter examples:
-    # Use a specific model on OpenRouter
-    AI_PROVIDER=openrouter AI_MODEL=anthropic/claude-sonnet-4-6 python tutor.py
-    AI_PROVIDER=openrouter AI_MODEL=google/gemini-flash-1.5 python tutor.py
-    AI_PROVIDER=openrouter AI_MODEL=meta-llama/llama-3.2-90b-vision-instruct python tutor.py
+OpenRouter example:
+    ai = AIConnect(
+        system_prompt=SYSTEM_PROMPT,
+        config=OpenRouterConfig(
+            api_key="sk-or-...",
+            model="google/gemini-flash-1.5",
+        ),
+    )
 """
 
-import os
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-# Default models per provider
-_DEFAULTS = {
-    "anthropic": "claude-sonnet-4-6",
-    "openai": "gpt-4o",
-    "openrouter": "anthropic/claude-sonnet-4-6",
-}
+
+# ── Provider config dataclasses ──────────────────────────────────────────────
+
+@dataclass
+class AnthropicConfig:
+    api_key: str
+    model: str = "claude-sonnet-4-6"
+    max_tokens: int = 100
 
 
-def _build_llm(provider: str, model: str, max_tokens: int):
-    """Instantiate a LangChain chat model for the given provider."""
-    if provider == "anthropic":
+@dataclass
+class OpenAIConfig:
+    api_key: str
+    model: str = "gpt-4o"
+    max_tokens: int = 100
+
+
+@dataclass
+class OpenRouterConfig:
+    api_key: str
+    model: str = "anthropic/claude-sonnet-4-6"
+    max_tokens: int = 100
+    base_url: str = "https://openrouter.ai/api/v1"
+    referer: str = "https://github.com/inktutor"
+    app_title: str = "InkTutor"
+
+
+ProviderConfig = AnthropicConfig | OpenAIConfig | OpenRouterConfig
+
+
+# ── LLM factory ──────────────────────────────────────────────────────────────
+
+def _build_llm(config: ProviderConfig):
+    if isinstance(config, AnthropicConfig):
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(
-            model=model,
-            max_tokens=max_tokens,
-            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            model=config.model,
+            max_tokens=config.max_tokens,
+            anthropic_api_key=config.api_key,
         )
 
-    if provider == "openai":
+    if isinstance(config, OpenAIConfig):
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
-            model=model,
-            max_tokens=max_tokens,
-            openai_api_key=os.environ.get("OPENAI_API_KEY"),
+            model=config.model,
+            max_tokens=config.max_tokens,
+            openai_api_key=config.api_key,
         )
 
-    if provider == "openrouter":
+    if isinstance(config, OpenRouterConfig):
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
-            model=model,
-            max_tokens=max_tokens,
-            openai_api_key=os.environ.get("OPENROUTER_API_KEY"),
-            openai_api_base=os.environ.get(
-                "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
-            ),
+            model=config.model,
+            max_tokens=config.max_tokens,
+            openai_api_key=config.api_key,
+            openai_api_base=config.base_url,
             default_headers={
-                "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", "https://github.com/inktutor"),
-                "X-Title": os.environ.get("OPENROUTER_APP_TITLE", "InkTutor"),
+                "HTTP-Referer": config.referer,
+                "X-Title": config.app_title,
             },
         )
 
-    raise ValueError(
-        f"Unknown provider {provider!r}. Choose 'anthropic', 'openai', or 'openrouter'."
-    )
+    raise TypeError(f"Unsupported config type: {type(config)}")
 
+
+# ── Main class ────────────────────────────────────────────────────────────────
 
 class AIConnect:
-    def __init__(
-        self,
-        system_prompt: str,
-        provider: str | None = None,
-        model: str | None = None,
-        max_tokens: int = 100,
-    ):
+    def __init__(self, system_prompt: str, config: ProviderConfig):
         """
         Args:
             system_prompt: Instruction context sent with every request.
-            provider:      "anthropic", "openai", or "openrouter". Defaults to
-                           env var AI_PROVIDER, then "anthropic".
-            model:         Model ID. Defaults to env var AI_MODEL, then a
-                           sensible default per provider.
-            max_tokens:    Maximum tokens in the response.
+            config:        One of AnthropicConfig, OpenAIConfig, or OpenRouterConfig.
         """
         self.system_prompt = system_prompt
-        self.provider = (provider or os.getenv("AI_PROVIDER", "anthropic")).lower()
-
-        if model:
-            self.model = model
-        elif os.getenv("AI_MODEL"):
-            self.model = os.environ["AI_MODEL"]
-        else:
-            self.model = _DEFAULTS.get(self.provider, "claude-sonnet-4-6")
-
-        self._llm = _build_llm(self.provider, self.model, max_tokens)
+        self._llm = _build_llm(config)
 
     def ask(self, image_b64: str, prompt: str) -> str:
         """Send a base64-encoded PNG and a text prompt; return the response."""

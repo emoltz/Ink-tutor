@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from ai_connect import AIConnect
+from ai_connect import AIConnect, AnthropicConfig
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
@@ -115,7 +115,10 @@ def speak(text: str):
 async def main():
     global last_dot_time
 
-    ai = AIConnect(system_prompt=SYSTEM_PROMPT)
+    ai = AIConnect(
+        system_prompt=SYSTEM_PROMPT,
+        config=AnthropicConfig(api_key=os.environ["ANTHROPIC_API_KEY"]),
+    )
 
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Solve: 3/4 + 1/6"
