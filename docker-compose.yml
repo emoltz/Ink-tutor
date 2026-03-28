@@ -1,0 +1,7 @@
+services:
+  tutor:
+    build: .
+    env_file: .env
+    volumes:
+      - .:/app
+      - /tmp/inktutor:/tmp/inktutor

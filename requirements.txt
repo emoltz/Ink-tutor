@@ -1,0 +1,8 @@
+anthropic
+Pillow
+pyaudio
+soundfile
+pyttsx3
+elevenlabs
+asyncio-mqtt
+python-dotenv
