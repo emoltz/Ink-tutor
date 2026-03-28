@@ -14,6 +14,14 @@ writes stroke dots as JSONL  ───► buffers strokes
                                   renders strokes → PNG
                                   calls Claude vision API
                                   speaks response via TTS
+                                  logs AI responses → ai_responses.jsonl
+
+                                  Docker Container (dashboard.py)
+                                  ──────────────────────────────
+                                  FastAPI + WebSocket on port 8080
+                                  tails strokes.jsonl (live dots)
+                                  tails ai_responses.jsonl (AI log)
+                                  streams to browser in real time
 ```
 
 Bluetooth cannot pass through Docker Desktop on Mac. The BLE script runs
@@ -27,10 +35,13 @@ inktutor/
 ├── CLAUDE.md           this file
 ├── Dockerfile          Python 3.12-slim, audio/TTS deps
 ├── docker-compose.yml  mounts ./:/app and /tmp/inktutor
-├── requirements.txt    anthropic, Pillow, pyttsx3, elevenlabs, bleak
+├── requirements.txt    anthropic, Pillow, pyttsx3, elevenlabs, bleak, fastapi
 ├── .env.example        copy to .env, add API keys
 ├── pen_host.py         runs on Mac host — BLE pen listener
-└── tutor.py            runs in Docker — AI tutor loop
+├── tutor.py            runs in Docker — AI tutor loop
+├── dashboard.py        runs in Docker — real-time monitoring dashboard
+└── static/
+    └── dashboard.html  single-page dashboard frontend
 ```
 
 ## Running the Project
@@ -49,6 +60,15 @@ python pen_host.py
 # 4. Turn on the LAMY pen and write on Ncode paper
 ```
 
+The dashboard starts automatically with `docker-compose up` and is available
+at **http://localhost:8080**. It shows live pen strokes, stats, and AI
+response history. Click **Clear** to reset for a new session.
+
+To test without the pen, append dots manually:
+```bash
+echo '{"x":100,"y":200,"pressure":500,"ts":'$(date +%s.%N)',"type":"dot"}' >> /tmp/inktutor/strokes.jsonl
+```
+
 ## Key Files
 
 ### pen_host.py
@@ -65,7 +85,17 @@ python pen_host.py
 - Sends the PNG + problem text to an AI vision model via LangChain
 - Provider configured via a typed dataclass passed to `AIConnect`
 - Speaks the response via `pyttsx3` (default) or ElevenLabs
+- Logs each AI response to `/tmp/inktutor/ai_responses.jsonl` for the dashboard
 - Resets idle timer after each AI call
+
+### dashboard.py
+- FastAPI app with a WebSocket endpoint (`/ws`) on port 8080
+- Tails `strokes.jsonl` and `ai_responses.jsonl` at 50ms intervals
+- Sends full stroke history on client connect, then streams new dots
+- `POST /clear` truncates both JSONL files for a fresh session
+- Frontend (`static/dashboard.html`) renders strokes on an HTML5 Canvas,
+  shows live stats (dot count, dots/sec, avg pressure, pause status),
+  and a scrollable AI response log
 
 ## Environment Variables
 
