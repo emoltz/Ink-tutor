@@ -12,10 +12,18 @@ Run:
 
 import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 
 from bleak import BleakClient, BleakScanner
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+log = logging.getLogger("pen_host")
 
 # Neo smartpen BLE service/characteristic UUIDs
 # These are the standard Neo protocol UUIDs
@@ -43,26 +51,39 @@ def parse_dot(data: bytearray) -> dict | None:
 
 
 async def run():
-    print("Scanning for Neo smartpen...")
-    devices = await BleakScanner.discover(timeout=10.0)
+    log.info("Scanning for Neo smartpen...")
+    try:
+        devices = await BleakScanner.discover(timeout=10.0)
+    except Exception:
+        log.exception("BLE scan failed")
+        return
+
     pen = next((d for d in devices if d.name and "NEO" in d.name.upper()), None)
 
     if not pen:
-        print("No Neo pen found. Make sure it's on and nearby.")
+        log.warning("No Neo pen found. Make sure it's on and nearby.")
         return
 
-    print(f"Found pen: {pen.name} ({pen.address})")
+    log.info("Found pen: %s (%s)", pen.name, pen.address)
 
     def on_dot(_, data: bytearray):
         dot = parse_dot(data)
         if dot:
-            with open(STROKE_FILE, "a") as f:
-                f.write(json.dumps(dot) + "\n")
+            try:
+                with open(STROKE_FILE, "a") as f:
+                    f.write(json.dumps(dot) + "\n")
+            except OSError:
+                log.exception("Failed to write dot to %s", STROKE_FILE)
+        else:
+            log.debug("Received unrecognised packet (%d bytes), skipping", len(data))
 
-    async with BleakClient(pen.address) as client:
-        print("Connected. Start writing...")
-        await client.start_notify(PEN_DATA_CHAR, on_dot)
-        await asyncio.sleep(3600)   # stream for up to 1 hour
+    try:
+        async with BleakClient(pen.address) as client:
+            log.info("Connected to %s. Start writing...", pen.name)
+            await client.start_notify(PEN_DATA_CHAR, on_dot)
+            await asyncio.sleep(3600)   # stream for up to 1 hour
+    except Exception:
+        log.exception("BLE connection to %s lost", pen.address)
 
 
 if __name__ == "__main__":

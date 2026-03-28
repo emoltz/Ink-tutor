@@ -6,10 +6,18 @@ Run with: uvicorn dashboard:app --host 0.0.0.0 --port 8080
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+log = logging.getLogger("dashboard")
 
 app = FastAPI()
 
@@ -24,16 +32,20 @@ def read_lines_from(filepath: Path, position: int) -> tuple[list[dict], int]:
     if not filepath.exists():
         return [], position
     lines = []
-    with open(filepath, "r") as f:
-        f.seek(position)
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-        new_position = f.tell()
+    try:
+        with open(filepath, "r") as f:
+            f.seek(position)
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        lines.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        log.warning("Skipping malformed line in %s: %s — %r", filepath.name, e, line[:80])
+            new_position = f.tell()
+    except OSError as e:
+        log.error("Failed to read %s: %s", filepath, e)
+        return [], position
     return lines, new_position
 
 
@@ -48,7 +60,11 @@ async def clear_session():
     """Truncate stroke and AI log files to start a fresh session."""
     for path in (STROKE_FILE, AI_LOG_FILE):
         if path.exists():
-            path.write_text("")
+            try:
+                path.write_text("")
+                log.info("Cleared %s", path)
+            except OSError as e:
+                log.error("Failed to clear %s: %s", path, e)
     return {"status": "cleared"}
 
 
@@ -68,6 +84,7 @@ async def websocket_endpoint(websocket: WebSocket):
     if history_ai:
         await websocket.send_json({"type": "ai_response", "data": history_ai})
 
+    log.info("WebSocket client connected")
     try:
         while True:
             new_dots, stroke_pos = read_lines_from(STROKE_FILE, stroke_pos)
@@ -80,4 +97,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
             await asyncio.sleep(POLL_INTERVAL)
     except WebSocketDisconnect:
-        pass
+        log.info("WebSocket client disconnected")
+    except Exception:
+        log.exception("Unexpected error in WebSocket handler")

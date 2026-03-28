@@ -7,6 +7,7 @@ renders them as an image, calls Claude vision, speaks the response.
 import asyncio
 import base64
 import json
+import logging
 import os
 import time
 from io import BytesIO
@@ -15,6 +16,14 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from ai_connect import AIConnect, AnthropicConfig
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+log = logging.getLogger("tutor")
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
@@ -47,16 +56,19 @@ def read_new_dots() -> list[dict]:
     if not STROKE_FILE.exists():
         return []
     dots = []
-    with open(STROKE_FILE, "r") as f:
-        f.seek(file_position)
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    dots.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-        file_position = f.tell()
+    try:
+        with open(STROKE_FILE, "r") as f:
+            f.seek(file_position)
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        dots.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        log.warning("Skipping malformed stroke line: %s — %r", e, line[:80])
+            file_position = f.tell()
+    except OSError as e:
+        log.error("Failed to read stroke file %s: %s", STROKE_FILE, e)
     return dots
 
 
@@ -93,8 +105,11 @@ def render_strokes(dots: list[dict]) -> str:
 def log_ai_response(feedback: str, dot_count: int):
     """Append AI response to log file for dashboard consumption."""
     entry = {"ts": time.time(), "feedback": feedback, "dot_count": dot_count}
-    with open(AI_LOG_FILE, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    try:
+        with open(AI_LOG_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError as e:
+        log.error("Failed to write AI response log %s: %s", AI_LOG_FILE, e)
 
 
 def speak(text: str):
@@ -131,9 +146,9 @@ async def main():
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Solve: 3/4 + 1/6"
 
-    print(f"InkTutor ready. Problem: {current_problem}")
-    print(f"Watching {STROKE_FILE} for strokes...")
-    print(f"Pause threshold: {PAUSE_THRESHOLD}s\n")
+    log.info("InkTutor ready. Problem: %s", current_problem)
+    log.info("Watching %s for strokes...", STROKE_FILE)
+    log.info("Pause threshold: %ss", PAUSE_THRESHOLD)
 
     while True:
         new_dots = read_new_dots()
@@ -141,19 +156,24 @@ async def main():
         if new_dots:
             strokes.extend(new_dots)
             last_dot_time = time.time()
+            log.debug("Received %d new dot(s), total: %d", len(new_dots), len(strokes))
 
         elif strokes and last_dot_time:
             idle = time.time() - last_dot_time
 
             if idle >= PAUSE_THRESHOLD:
-                print(f"Pause detected ({idle:.1f}s). Analysing work...")
-                image_b64 = render_strokes(strokes)
-                prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
-                feedback = ai.ask(image_b64, prompt)
-                log_ai_response(feedback, len(strokes))
-                print(f"AI: {feedback}")
-                speak(feedback)
-                last_dot_time = 0.0  # reset so we don't fire again immediately
+                log.info("Pause detected (%.1fs, %d dots). Analysing work...", idle, len(strokes))
+                try:
+                    image_b64 = render_strokes(strokes)
+                    prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
+                    feedback = ai.ask(image_b64, prompt)
+                    log_ai_response(feedback, len(strokes))
+                    log.info("AI response: %s", feedback)
+                    speak(feedback)
+                except Exception:
+                    log.exception("AI analysis failed")
+                finally:
+                    last_dot_time = 0.0  # reset so we don't fire again immediately
 
         await asyncio.sleep(0.1)
 

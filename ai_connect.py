@@ -27,9 +27,12 @@ OpenRouter example:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
+log = logging.getLogger("ai_connect")
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────
@@ -110,6 +113,7 @@ class AIConnect:
 
     def ask(self, image_b64: str, prompt: str) -> str:
         """Send a base64-encoded PNG and a text prompt; return the response."""
+        log.debug("Sending request to AI (image: %d bytes, prompt: %r)", len(image_b64), prompt[:60])
         messages = [
             SystemMessage(content=self.system_prompt),
             HumanMessage(content=[
@@ -121,4 +125,6 @@ class AIConnect:
             ]),
         ]
         response = self._llm.invoke(messages)
-        return response.content.strip()
+        result = response.content.strip()
+        log.debug("AI response: %r", result)
+        return result
