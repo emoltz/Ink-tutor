@@ -62,19 +62,27 @@ python pen_host.py
 - Accumulates dots into a stroke buffer
 - Fires when pen has been idle for `PAUSE_THRESHOLD_SECONDS`
 - Renders dots onto a white 1200×900 canvas using Pillow
-- Sends the PNG + problem text to Claude vision (`claude-sonnet-4-6`)
+- Sends the PNG + problem text to an AI vision model via LangChain
+- Provider/model configured via `AI_PROVIDER` / `AI_MODEL` env vars
 - Speaks the response via `pyttsx3` (default) or ElevenLabs
 - Resets idle timer after each AI call
 
 ## Environment Variables
 
-| Variable                  | Default   | Description                       |
-|---------------------------|-----------|-----------------------------------|
-| `ANTHROPIC_API_KEY`       | required  | Claude API key                    |
-| `PAUSE_THRESHOLD_SECONDS` | `3.0`     | Idle time before AI fires         |
-| `TTS_ENGINE`              | `pyttsx3` | `pyttsx3` or `elevenlabs`         |
-| `ELEVENLABS_API_KEY`      | —         | Required if TTS_ENGINE=elevenlabs |
-| `ELEVENLABS_VOICE_ID`     | `Rachel`  | ElevenLabs voice                  |
+| Variable                  | Default                          | Description                                              |
+|---------------------------|----------------------------------|----------------------------------------------------------|
+| `AI_PROVIDER`             | `anthropic`                      | `anthropic`, `openai`, or `openrouter`                   |
+| `AI_MODEL`                | provider default                 | Model ID override (e.g. `gpt-4o`, `google/gemini-flash-1.5`) |
+| `ANTHROPIC_API_KEY`       | required for anthropic provider  | Claude API key                                           |
+| `OPENAI_API_KEY`          | required for openai provider     | OpenAI API key                                           |
+| `OPENROUTER_API_KEY`      | required for openrouter provider | OpenRouter API key                                       |
+| `OPENROUTER_BASE_URL`     | `https://openrouter.ai/api/v1`   | Override OpenRouter base URL                             |
+| `OPENROUTER_REFERER`      | `https://github.com/inktutor`    | HTTP-Referer header sent to OpenRouter                   |
+| `OPENROUTER_APP_TITLE`    | `InkTutor`                       | X-Title header sent to OpenRouter                        |
+| `PAUSE_THRESHOLD_SECONDS` | `3.0`                            | Idle time before AI fires                                |
+| `TTS_ENGINE`              | `pyttsx3`                        | `pyttsx3` or `elevenlabs`                                |
+| `ELEVENLABS_API_KEY`      | —                                | Required if TTS_ENGINE=elevenlabs                        |
+| `ELEVENLABS_VOICE_ID`     | `Rachel`                         | ElevenLabs voice                                         |
 
 ## AI Tutor Behaviour
 
