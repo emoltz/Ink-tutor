@@ -12,8 +12,9 @@ import time
 from io import BytesIO
 from pathlib import Path
 
-import anthropic
 from PIL import Image, ImageDraw
+
+from ai_connect import AIConnect
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
@@ -87,33 +88,6 @@ def render_strokes(dots: list[dict]) -> str:
     return base64.standard_b64encode(buf.getvalue()).decode()
 
 
-def call_ai(image_b64: str, problem: str) -> str:
-    """Send the rendered stroke image to Claude and get tutor feedback."""
-    client = anthropic.Anthropic()
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=100,
-        system=SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": image_b64,
-                    },
-                },
-                {
-                    "type": "text",
-                    "text": f"The student is solving: {problem}\nWhat do you see in their work so far?"
-                }
-            ],
-        }],
-    )
-    return response.content[0].text.strip()
-
 
 def speak(text: str):
     """Speak text using the configured TTS engine."""
@@ -141,6 +115,8 @@ def speak(text: str):
 async def main():
     global last_dot_time
 
+    ai = AIConnect(system_prompt=SYSTEM_PROMPT)
+
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Solve: 3/4 + 1/6"
 
@@ -161,7 +137,8 @@ async def main():
             if idle >= PAUSE_THRESHOLD:
                 print(f"Pause detected ({idle:.1f}s). Analysing work...")
                 image_b64 = render_strokes(strokes)
-                feedback = call_ai(image_b64, current_problem)
+                prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
+                feedback = ai.ask(image_b64, prompt)
                 print(f"AI: {feedback}")
                 speak(feedback)
                 last_dot_time = 0.0  # reset so we don't fire again immediately
