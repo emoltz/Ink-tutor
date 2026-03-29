@@ -123,11 +123,15 @@ ai = AIConnect(system_prompt=SYSTEM_PROMPT,
                config=OpenAIConfig(api_key="sk-...", model="gpt-4o"))
 
 # OpenRouter — swap any vision model without changing anything else
-from ai_connect import AIConnect, OpenRouterConfig
+from ai_connect import AIConnect, OpenRouterConfig, OPENROUTER_VISION_MODELS
+# Available keys: claude-opus-4-6, claude-sonnet-4-6 (default), claude-haiku-4-5,
+#                 gemini-3-pro, gemini-3-flash, gemini-2.5-pro, gemini-2.5-flash,
+#                 gemini-2.0-flash, gpt-4o, gpt-4o-mini, o4-mini,
+#                 llama-4-maverick, llama-4-scout, mistral-small-3.2, mistral-small-3.1
 ai = AIConnect(system_prompt=SYSTEM_PROMPT,
                config=OpenRouterConfig(
                    api_key="sk-or-...",
-                   model="google/gemini-flash-1.5",   # or any OpenRouter model ID
+                   model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],
                ))
 ```
 

@@ -16,11 +16,16 @@ Usage:
     response = ai.ask(image_b64="...", prompt="The student is solving: 3/4 + 1/6")
 
 OpenRouter example:
+    from ai_connect import AIConnect, OpenRouterConfig, OPENROUTER_VISION_MODELS
+
+    # Use any key from OPENROUTER_VISION_MODELS, or pass an OpenRouter model ID directly:
     ai = AIConnect(
         system_prompt=SYSTEM_PROMPT,
         config=OpenRouterConfig(
             api_key="sk-or-...",
-            model="google/gemini-flash-1.5",
+            model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],  # fast and cheap
+            # model=OPENROUTER_VISION_MODELS["gpt-4o"]           # OpenAI alternative
+            # model="anthropic/claude-opus-4-6"                  # or pass ID directly
         ),
     )
 """
@@ -37,6 +42,33 @@ try:
     _LANGFUSE_AVAILABLE = True
 except ImportError:
     _LANGFUSE_AVAILABLE = False
+
+
+# ── Known-good OpenRouter vision models ──────────────────────────────────────
+# All models listed here support base64-encoded image input.
+# Values are OpenRouter model IDs; pass them as OpenRouterConfig(model=...).
+OPENROUTER_VISION_MODELS: dict[str, str] = {
+    # Anthropic — Claude 4 family (all support vision)
+    "claude-opus-4-6":   "anthropic/claude-opus-4-6",               # most capable, highest cost
+    "claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",             # default; best speed/cost balance
+    "claude-haiku-4-5":  "anthropic/claude-haiku-4-5",              # fastest, lowest cost
+    # Google — Gemini family
+    "gemini-3-pro":      "google/gemini-3-pro-preview",             # latest top-tier, highest cost
+    "gemini-3-flash":    "google/gemini-3-flash-preview",           # latest fast model
+    "gemini-2.5-pro":    "google/gemini-2.5-pro-preview",           # strong reasoning, 1M context
+    "gemini-2.5-flash":  "google/gemini-2.5-flash",                 # fast and cheap, very capable
+    "gemini-2.0-flash":  "google/gemini-2.0-flash-001",             # stable 2.0 Flash checkpoint
+    # OpenAI
+    "gpt-4o":            "openai/gpt-4o",                           # strong vision, widely tested
+    "gpt-4o-mini":       "openai/gpt-4o-mini",                      # lightweight, cost-effective
+    "o4-mini":           "openai/o4-mini",                          # fast reasoning + vision
+    # Meta — Llama 4 multimodal
+    "llama-4-maverick":  "meta-llama/llama-4-maverick",             # large MoE, strong reasoning
+    "llama-4-scout":     "meta-llama/llama-4-scout",                # 10M context, efficient
+    # Mistral — vision-capable small models
+    "mistral-small-3.2": "mistralai/mistral-small-3.2-24b-instruct",  # latest, vision + tool calling
+    "mistral-small-3.1": "mistralai/mistral-small-3.1-24b-instruct",  # solid, widely used
+}
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────
