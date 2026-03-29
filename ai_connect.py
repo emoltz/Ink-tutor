@@ -177,14 +177,13 @@ class AIConnect:
                 {"type": "text", "text": prompt},
             ]),
         ]
-        invoke_config: dict = {}
+        invoke_config: dict | None = None
         if self._langfuse_handler:
-            invoke_config["callbacks"] = [self._langfuse_handler]
-            invoke_config["run_name"] = "ink-tutor-analysis"
+            invoke_config = {"callbacks": [self._langfuse_handler], "run_name": "ink-tutor-analysis"}
             if metadata:
                 invoke_config["metadata"] = metadata
         try:
-            response = self._llm.invoke(messages, config=invoke_config or None)
+            response = self._llm.invoke(messages, config=invoke_config)
         except Exception as e:
             raise RuntimeError(f"LLM call failed: {e}") from e
 
@@ -192,3 +191,11 @@ class AIConnect:
             return response.content.strip()
         except AttributeError as e:
             raise RuntimeError(f"Unexpected LLM response format: {e}") from e
+
+    def flush(self) -> None:
+        """Flush pending Langfuse traces. Call before process exit."""
+        if self._langfuse_handler:
+            self._langfuse_handler.flush()
+
+    def __del__(self) -> None:
+        self.flush()
