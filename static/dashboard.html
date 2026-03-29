@@ -189,6 +189,7 @@
   <div class="status">
     <span class="status-dot disconnected" id="statusDot"></span>
     <span id="statusText">Disconnected</span>
+    <button id="drawBtn" onclick="toggleDraw()">Draw</button>
     <button onclick="clearSession()">Clear</button>
   </div>
 </header>
@@ -373,6 +374,50 @@ function connectWS() {
     }
   };
 }
+
+// --- Draw Mode ---
+
+let drawMode = false;
+let isDrawing = false;
+let lastInjectTs = 0;
+
+function toggleDraw() {
+  drawMode = !drawMode;
+  const btn = document.getElementById("drawBtn");
+  btn.textContent = drawMode ? "Drawing..." : "Draw";
+  btn.style.background = drawMode ? "#dbeddb" : "";
+  btn.style.borderColor = drawMode ? "#2d6a2e" : "";
+  btn.style.color = drawMode ? "#2d6a2e" : "";
+  canvas.style.cursor = drawMode ? "crosshair" : "default";
+}
+
+function canvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: Math.round((e.clientX - rect.left) * scaleX),
+    y: Math.round((e.clientY - rect.top) * scaleY),
+  };
+}
+
+async function sendDot(e) {
+  if (!drawMode || !isDrawing) return;
+  const now = Date.now();
+  if (now - lastInjectTs < 20) return; // throttle to ~50 dots/sec
+  lastInjectTs = now;
+  const { x, y } = canvasPos(e);
+  await fetch("/inject", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ x, y, pressure: 512, ts: now / 1000, type: "dot" }),
+  }).catch(() => {});
+}
+
+canvas.addEventListener("mousedown", (e) => { if (drawMode) { isDrawing = true; sendDot(e); } });
+canvas.addEventListener("mousemove", sendDot);
+canvas.addEventListener("mouseup", () => { isDrawing = false; });
+canvas.addEventListener("mouseleave", () => { isDrawing = false; });
 
 // --- Clear ---
 

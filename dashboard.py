@@ -43,6 +43,15 @@ async def index():
     return HTMLResponse(content=html_path.read_text())
 
 
+@app.post("/inject")
+async def inject_dot(dot: dict):
+    """Append a simulated dot to the stroke file (for draw mode)."""
+    STROKE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with STROKE_FILE.open("a") as f:
+        f.write(json.dumps(dot) + "\n")
+    return {"status": "ok"}
+
+
 @app.post("/clear")
 async def clear_session():
     """Truncate stroke and AI log files to start a fresh session."""
