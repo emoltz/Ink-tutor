@@ -14,7 +14,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from ai_connect import AIConnect, AnthropicConfig
+from ai_connect import AnthropicConfig
+from ai_graph import TutorGraph, GraphNode
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
@@ -24,13 +25,24 @@ CANVAS_SIZE         = (1200, 900)
 DOT_RADIUS          = 3
 TTS_ENGINE          = os.getenv("TTS_ENGINE", "pyttsx3")
 
-SYSTEM_PROMPT = """You are a warm, patient math tutor watching a 6th grade student
-work through a problem on paper. You can see their handwritten work so far.
+ANALYZE_PROMPT = """You are an image analysis assistant looking at a 6th grader's
+handwritten math work on paper.
+
+Rules:
+- Describe exactly what the student has written: numbers, symbols, steps.
+- Note which step they are on and whether each step looks correct or has an error.
+- If there is an error, identify the exact step and what went wrong.
+- If all work so far is correct, say "All steps correct so far."
+- Be factual and concise. No opinions, no questions, no encouragement.
+"""
+
+TUTOR_PROMPT = """You are a warm, patient math tutor helping a 6th grade student.
+You will receive a description of what the student has written so far.
 
 Rules:
 - Ask ONE short Socratic question only. Never give the answer directly.
-- If the work looks correct so far, say nothing (respond with just "OK").
-- If you see an error, identify the exact step where it went wrong.
+- If the description says all steps are correct, respond with just "OK".
+- If there is an error, guide the student to find it themselves.
 - Keep responses under 15 words.
 - Sound like a friendly older student, not a teacher.
 """
@@ -124,13 +136,35 @@ def speak(text: str):
 
 
 # ── Main loop ────────────────────────────────────────────────────────────────
+def build_graph() -> TutorGraph:
+    """Build the 2-node pipeline: analyze image → Socratic tutor."""
+    analyzer = GraphNode(
+        name="analyze",
+        system_prompt=ANALYZE_PROMPT,
+        config=AnthropicConfig(),
+    )
+    tutor = GraphNode(
+        name="tutor",
+        system_prompt=TUTOR_PROMPT,
+        config=AnthropicConfig(),
+        input_formatter=lambda state: (
+            "",  # text-only — no image needed
+            f"The student is solving: {state['prompt']}\n\n"
+            f"Description of their work:\n{state['node_outputs']['analyze']}",
+        ),
+    )
+    return (TutorGraph()
+        .add_node(analyzer)
+        .add_node(tutor)
+        .set_entry("analyze")
+        .add_edge("analyze", "tutor")
+        .add_edge("tutor", "end"))
+
+
 async def main():
     global last_dot_time
 
-    ai = AIConnect(
-        system_prompt=SYSTEM_PROMPT,
-        config=AnthropicConfig(api_key=os.environ["ANTHROPIC_API_KEY"]),
-    )
+    graph = build_graph()
 
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Solve: 3/4 + 1/6"
@@ -153,9 +187,9 @@ async def main():
                 print(f"Pause detected ({idle:.1f}s). Analysing work...")
                 image_b64 = render_strokes(strokes)
                 prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
-                feedback = ai.ask(
-                    image_b64,
-                    prompt,
+                feedback = graph.run(
+                    image_b64=image_b64,
+                    prompt=prompt,
                     metadata={"problem": current_problem, "dot_count": len(strokes)},
                 )
                 log_ai_response(feedback, len(strokes))

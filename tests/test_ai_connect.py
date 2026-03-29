@@ -117,3 +117,23 @@ class TestConfigDefaults:
     def test_openrouter_has_base_url(self):
         c = OpenRouterConfig(api_key="k")
         assert c.base_url.startswith("https://")
+
+    def test_anthropic_reads_key_from_env(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "env-ant-key")
+        c = AnthropicConfig()
+        assert c.api_key == "env-ant-key"
+
+    def test_openai_reads_key_from_env(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "env-oai-key")
+        c = OpenAIConfig()
+        assert c.api_key == "env-oai-key"
+
+    def test_openrouter_reads_key_from_env(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "env-or-key")
+        c = OpenRouterConfig()
+        assert c.api_key == "env-or-key"
+
+    def test_explicit_key_overrides_env(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
+        c = AnthropicConfig(api_key="explicit-key")
+        assert c.api_key == "explicit-key"

@@ -5,52 +5,37 @@ Builds on ai_connect.py's provider configs and LLM factory to create
 multi-node graphs where each node can use a different model, system prompt,
 and routing logic.
 
-Simple single-node usage (equivalent to AIConnect.ask):
+API keys are read from environment variables by default (ANTHROPIC_API_KEY,
+OPENAI_API_KEY, OPENROUTER_API_KEY).
+
+Two-node pipeline (analyze image → Socratic tutor):
 
     from ai_graph import TutorGraph, GraphNode
     from ai_connect import AnthropicConfig
 
-    graph = (TutorGraph()
-        .add_node(GraphNode(
-            name="tutor",
-            system_prompt="You are a math tutor.",
-            config=AnthropicConfig(api_key="sk-ant-..."),
-        ))
-        .set_entry("tutor")
-        .add_edge("tutor", "end"))
-
-    response = graph.run(image_b64="...", prompt="What do you see?")
-
-Multi-node with conditional routing:
-
-    from ai_graph import TutorGraph, GraphNode
-    from ai_connect import AnthropicConfig, OpenRouterConfig, OPENROUTER_VISION_MODELS
-
     analyzer = GraphNode(
         name="analyze",
-        system_prompt="Respond OK if correct, ERROR if wrong.",
-        config=OpenRouterConfig(
-            api_key="sk-or-...",
-            model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],
-        ),
+        system_prompt="Describe the student's handwritten work.",
+        config=AnthropicConfig(),  # reads ANTHROPIC_API_KEY from env
     )
     tutor = GraphNode(
         name="tutor",
-        system_prompt="Ask one Socratic question about the error.",
-        config=AnthropicConfig(api_key="sk-ant-...", max_tokens=200),
+        system_prompt="Ask one short Socratic question. Never give the answer.",
+        config=AnthropicConfig(),
+        input_formatter=lambda s: ("", s["node_outputs"]["analyze"]),
     )
-
-    def route(state):
-        return "ok" if state["response"].strip().upper() == "OK" else "needs_help"
 
     graph = (TutorGraph()
         .add_node(analyzer)
         .add_node(tutor)
         .set_entry("analyze")
-        .add_conditional_edge("analyze", route, {"ok": "end", "needs_help": "tutor"})
+        .add_edge("analyze", "tutor")
         .add_edge("tutor", "end"))
 
     response = graph.run(image_b64="...", prompt="Solve 3/4 + 1/6")
+
+Nodes that receive an empty image_b64 send text-only messages (no vision).
+Each node can use a different model/provider — just pass a different config.
 """
 
 from __future__ import annotations
@@ -115,18 +100,21 @@ class GraphNode:
         if self.input_formatter:
             image_b64, prompt = self.input_formatter(state)
         else:
-            image_b64 = state["image_b64"]
+            image_b64 = state.get("image_b64", "")
             prompt = state["prompt"]
+
+        # Build content blocks — include image only when present
+        content: list[dict[str, Any]] = []
+        if image_b64:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+            })
+        content.append({"type": "text", "text": prompt})
 
         messages = [
             SystemMessage(content=self.system_prompt),
-            HumanMessage(content=[
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                },
-                {"type": "text", "text": prompt},
-            ]),
+            HumanMessage(content=content),
         ]
 
         result = self._llm.invoke(messages, config=config)

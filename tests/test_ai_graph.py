@@ -110,6 +110,30 @@ class TestGraphNode:
         img_block = next(b for b in human_msg.content if b.get("type") == "image_url")
         assert "base64data" in img_block["image_url"]["url"]
 
+    def test_text_only_when_no_image(self):
+        """When image_b64 is empty, no image block is included."""
+        node = _make_node(
+            input_formatter=lambda s: ("", "just text"),
+        )
+        node({"image_b64": "img", "prompt": "p"})
+
+        args, _ = node._llm.invoke.call_args
+        human_msg = args[0][1]
+        content_types = [b.get("type") for b in human_msg.content]
+        assert "image_url" not in content_types
+        assert "text" in content_types
+
+    def test_text_only_when_image_missing_from_state(self):
+        """Nodes work when image_b64 is not in state at all."""
+        node = _make_node()
+        result = node({"prompt": "text only"})
+        assert result["response"] == "Some feedback"
+
+        args, _ = node._llm.invoke.call_args
+        human_msg = args[0][1]
+        content_types = [b.get("type") for b in human_msg.content]
+        assert "image_url" not in content_types
+
 
 # ── TutorGraph builder ──────────────────────────────────────────────────────
 
