@@ -27,9 +27,16 @@ OpenRouter example:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
+try:
+    from langfuse.langchain import CallbackHandler as LangfuseCallback
+    _LANGFUSE_AVAILABLE = True
+except ImportError:
+    _LANGFUSE_AVAILABLE = False
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────
@@ -107,8 +114,11 @@ class AIConnect:
         """
         self.system_prompt = system_prompt
         self._llm = _build_llm(config)
+        self._langfuse_handler = None
+        if _LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
+            self._langfuse_handler = LangfuseCallback()
 
-    def ask(self, image_b64: str, prompt: str) -> str:
+    def ask(self, image_b64: str, prompt: str, metadata: dict | None = None) -> str:
         """Send a base64-encoded PNG and a text prompt; return the response."""
         messages = [
             SystemMessage(content=self.system_prompt),
@@ -120,5 +130,11 @@ class AIConnect:
                 {"type": "text", "text": prompt},
             ]),
         ]
-        response = self._llm.invoke(messages)
+        invoke_config: dict = {}
+        if self._langfuse_handler:
+            invoke_config["callbacks"] = [self._langfuse_handler]
+            invoke_config["run_name"] = "ink-tutor-analysis"
+            if metadata:
+                invoke_config["metadata"] = metadata
+        response = self._llm.invoke(messages, config=invoke_config or None)
         return response.content.strip()

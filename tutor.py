@@ -153,7 +153,11 @@ async def main():
                 print(f"Pause detected ({idle:.1f}s). Analysing work...")
                 image_b64 = render_strokes(strokes)
                 prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
-                feedback = ai.ask(image_b64, prompt)
+                feedback = ai.ask(
+                    image_b64,
+                    prompt,
+                    metadata={"problem": current_problem, "dot_count": len(strokes)},
+                )
                 log_ai_response(feedback, len(strokes))
                 print(f"AI: {feedback}")
                 speak(feedback)
