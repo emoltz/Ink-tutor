@@ -98,10 +98,13 @@ class GraphNode:
 
     def __call__(self, state: TutorState, config: RunnableConfig = None) -> dict:
         if self.input_formatter:
-            image_b64, prompt = self.input_formatter(state)
+            try:
+                image_b64, prompt = self.input_formatter(state)
+            except Exception as e:
+                raise RuntimeError(f"Node '{self.name}' input_formatter failed: {e}") from e
         else:
             image_b64 = state.get("image_b64", "")
-            prompt = state["prompt"]
+            prompt = state.get("prompt", "")
 
         # Build content blocks — include image only when present
         content: list[dict[str, Any]] = []
@@ -117,8 +120,15 @@ class GraphNode:
             HumanMessage(content=content),
         ]
 
-        result = self._llm.invoke(messages, config=config)
-        text = result.content.strip()
+        try:
+            result = self._llm.invoke(messages, config=config)
+        except Exception as e:
+            raise RuntimeError(f"Node '{self.name}' LLM call failed: {e}") from e
+
+        try:
+            text = result.content.strip()
+        except AttributeError as e:
+            raise RuntimeError(f"Node '{self.name}' got unexpected response format: {e}") from e
 
         node_outputs = dict(state.get("node_outputs") or {})
         node_outputs[self.name] = text
@@ -219,7 +229,11 @@ class TutorGraph:
             metadata:   Optional metadata dict passed through state.
             callbacks:  Optional LangChain callbacks (e.g. Langfuse).
         """
-        compiled = self.compile()
+        try:
+            compiled = self.compile()
+        except Exception as e:
+            raise RuntimeError(f"Graph compilation failed: {e}") from e
+
         initial_state: TutorState = {
             "image_b64": image_b64,
             "prompt": prompt,
@@ -228,7 +242,11 @@ class TutorGraph:
         invoke_config: dict[str, Any] = {}
         if callbacks:
             invoke_config["callbacks"] = callbacks
-        final_state = compiled.invoke(
-            initial_state, config=invoke_config or None
-        )
+        try:
+            final_state = compiled.invoke(
+                initial_state, config=invoke_config or None
+            )
+        except Exception as e:
+            raise RuntimeError(f"Graph execution failed: {e}") from e
+
         return final_state.get("response", "")
