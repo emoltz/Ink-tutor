@@ -242,6 +242,7 @@ class TutorGraph:
         invoke_config: dict[str, Any] = {}
         if callbacks:
             invoke_config["callbacks"] = callbacks
+            invoke_config["run_name"] = "ink-tutor-graph"
         try:
             final_state = compiled.invoke(
                 initial_state, config=invoke_config or None
