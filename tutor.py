@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from ai_connect import AnthropicConfig
+from ai_connect import AnthropicConfig, OpenRouterConfig, OPENROUTER_VISION_MODELS
 from ai_graph import TutorGraph, GraphNode
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -165,12 +165,12 @@ def build_graph() -> TutorGraph:
     analyzer = GraphNode(
         name="analyze",
         system_prompt=ANALYZE_PROMPT,
-        config=AnthropicConfig(),
+        config=OpenRouterConfig(model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"]),
     )
     tutor = GraphNode(
         name="tutor",
         system_prompt=TUTOR_PROMPT,
-        config=AnthropicConfig(),
+        config=AnthropicConfig(model="claude-haiku-4-5"),
         input_formatter=lambda state: (
             "",  # text-only — no image needed
             f"The student is solving: {state['prompt']}\n\n"
