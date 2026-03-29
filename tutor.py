@@ -97,26 +97,30 @@ def log_ai_response(feedback: str, dot_count: int):
         f.write(json.dumps(entry) + "\n")
 
 
+SPEECH_FILE = Path("/tmp/inktutor/speech.wav")
+
+
 def speak(text: str):
-    """Speak text using the configured TTS engine."""
+    """Write TTS audio to a shared file; the host plays it."""
     if text.upper() == "OK":
         return  # AI said nothing to say — stay silent
 
     if TTS_ENGINE == "elevenlabs":
-        from elevenlabs import ElevenLabs, play
+        from elevenlabs import ElevenLabs
         client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
         audio = client.generate(
             text=text,
             voice=os.getenv("ELEVENLABS_VOICE_ID", "Rachel"),
             model="eleven_monolingual_v1",
         )
-        play(audio)
+        SPEECH_FILE.write_bytes(b"".join(audio))
     else:
-        import pyttsx3
-        engine = pyttsx3.init()
-        engine.setProperty("rate", 160)
-        engine.say(text)
-        engine.runAndWait()
+        import subprocess
+        # espeak-ng writes directly to WAV; no audio device needed in Docker
+        subprocess.run(
+            ["espeak-ng", "-w", str(SPEECH_FILE), "-s", "160", text],
+            check=True,
+        )
 
 
 # ── Main loop ────────────────────────────────────────────────────────────────
