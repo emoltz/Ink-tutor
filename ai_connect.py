@@ -75,26 +75,38 @@ OPENROUTER_VISION_MODELS: dict[str, str] = {
 
 @dataclass
 class AnthropicConfig:
-    api_key: str
+    api_key: str | None = None
     model: str = "claude-sonnet-4-6"
     max_tokens: int = 100
+
+    def __post_init__(self):
+        if self.api_key is None:
+            self.api_key = os.environ["ANTHROPIC_API_KEY"]
 
 
 @dataclass
 class OpenAIConfig:
-    api_key: str
+    api_key: str | None = None
     model: str = "gpt-4o"
     max_tokens: int = 100
+
+    def __post_init__(self):
+        if self.api_key is None:
+            self.api_key = os.environ["OPENAI_API_KEY"]
 
 
 @dataclass
 class OpenRouterConfig:
-    api_key: str
+    api_key: str | None = None
     model: str = "anthropic/claude-sonnet-4-6"
     max_tokens: int = 100
     base_url: str = "https://openrouter.ai/api/v1"
     referer: str = "https://github.com/inktutor"
     app_title: str = "InkTutor"
+
+    def __post_init__(self):
+        if self.api_key is None:
+            self.api_key = os.environ["OPENROUTER_API_KEY"]
 
 
 ProviderConfig = AnthropicConfig | OpenAIConfig | OpenRouterConfig
