@@ -24,40 +24,52 @@ def read_lines_from(filepath: Path, position: int) -> tuple[list[dict], int]:
     if not filepath.exists():
         return [], position
     lines = []
-    with open(filepath, "r") as f:
-        f.seek(position)
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-        new_position = f.tell()
+    try:
+        with open(filepath, "r") as f:
+            f.seek(position)
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        lines.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+            new_position = f.tell()
+    except OSError:
+        return [], position
     return lines, new_position
 
 
 @app.get("/")
 async def index():
     html_path = Path(__file__).parent / "static" / "dashboard.html"
-    return HTMLResponse(content=html_path.read_text())
+    try:
+        return HTMLResponse(content=html_path.read_text())
+    except OSError as e:
+        return HTMLResponse(content=f"<pre>Dashboard UI not found: {e}</pre>", status_code=500)
 
 
 @app.post("/inject")
 async def inject_dot(dot: dict):
     """Append a simulated dot to the stroke file (for draw mode)."""
-    STROKE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with STROKE_FILE.open("a") as f:
-        f.write(json.dumps(dot) + "\n")
+    try:
+        STROKE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with STROKE_FILE.open("a") as f:
+            f.write(json.dumps(dot) + "\n")
+    except OSError as e:
+        return {"status": "error", "detail": str(e)}
     return {"status": "ok"}
 
 
 @app.post("/clear")
 async def clear_session():
     """Truncate stroke and AI log files to start a fresh session."""
-    for path in (STROKE_FILE, AI_LOG_FILE):
-        if path.exists():
-            path.write_text("")
+    try:
+        for path in (STROKE_FILE, AI_LOG_FILE):
+            if path.exists():
+                path.write_text("")
+    except OSError as e:
+        return {"status": "error", "detail": str(e)}
     return {"status": "cleared"}
 
 
@@ -90,3 +102,6 @@ async def websocket_endpoint(websocket: WebSocket):
             await asyncio.sleep(POLL_INTERVAL)
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        await websocket.close()

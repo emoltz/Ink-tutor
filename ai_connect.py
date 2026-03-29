@@ -160,7 +160,10 @@ class AIConnect:
         self._llm = _build_llm(config)
         self._langfuse_handler = None
         if _LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
-            self._langfuse_handler = LangfuseCallback()
+            try:
+                self._langfuse_handler = LangfuseCallback()
+            except Exception as e:
+                print(f"Warning: Langfuse init failed, tracing disabled: {e}")
 
     def ask(self, image_b64: str, prompt: str, metadata: dict | None = None) -> str:
         """Send a base64-encoded PNG and a text prompt; return the response."""
@@ -180,5 +183,12 @@ class AIConnect:
             invoke_config["run_name"] = "ink-tutor-analysis"
             if metadata:
                 invoke_config["metadata"] = metadata
-        response = self._llm.invoke(messages, config=invoke_config or None)
-        return response.content.strip()
+        try:
+            response = self._llm.invoke(messages, config=invoke_config or None)
+        except Exception as e:
+            raise RuntimeError(f"LLM call failed: {e}") from e
+
+        try:
+            return response.content.strip()
+        except AttributeError as e:
+            raise RuntimeError(f"Unexpected LLM response format: {e}") from e

@@ -24,7 +24,10 @@ PEN_DATA_CHAR        = "19f1bf82-b251-4b3f-8b1c-5b0bbd538d3e"
 PEN_CONTROL_CHAR     = "19f1bf81-b251-4b3f-8b1c-5b0bbd538d3e"
 
 STROKE_FILE = Path("/tmp/inktutor/strokes.jsonl")
-STROKE_FILE.parent.mkdir(parents=True, exist_ok=True)
+try:
+    STROKE_FILE.parent.mkdir(parents=True, exist_ok=True)
+except OSError as e:
+    print(f"Warning: could not create stroke directory: {e}")
 
 
 def parse_dot(data: bytearray) -> dict | None:
@@ -33,18 +36,27 @@ def parse_dot(data: bytearray) -> dict | None:
     # Exact byte layout from Neo SDK documentation
     if len(data) < 12:
         return None
-    return {
-        "x":        int.from_bytes(data[0:4], "big"),
-        "y":        int.from_bytes(data[4:8], "big"),
-        "pressure": int.from_bytes(data[8:10], "big"),
-        "ts":       time.time(),
-        "type":     "dot",
-    }
+    try:
+        return {
+            "x":        int.from_bytes(data[0:4], "big"),
+            "y":        int.from_bytes(data[4:8], "big"),
+            "pressure": int.from_bytes(data[8:10], "big"),
+            "ts":       time.time(),
+            "type":     "dot",
+        }
+    except Exception as e:
+        print(f"Warning: could not parse dot packet: {e}")
+        return None
 
 
 async def run():
     print("Scanning for Neo smartpen...")
-    devices = await BleakScanner.discover(timeout=10.0)
+    try:
+        devices = await BleakScanner.discover(timeout=10.0)
+    except Exception as e:
+        print(f"Bluetooth scan failed: {e}")
+        return
+
     pen = next((d for d in devices if d.name and "NEO" in d.name.upper()), None)
 
     if not pen:
@@ -56,14 +68,23 @@ async def run():
     def on_dot(_, data: bytearray):
         dot = parse_dot(data)
         if dot:
-            with open(STROKE_FILE, "a") as f:
-                f.write(json.dumps(dot) + "\n")
+            try:
+                with open(STROKE_FILE, "a") as f:
+                    f.write(json.dumps(dot) + "\n")
+            except OSError as e:
+                print(f"Warning: could not write dot to file: {e}")
 
-    async with BleakClient(pen.address) as client:
-        print("Connected. Start writing...")
-        await client.start_notify(PEN_DATA_CHAR, on_dot)
-        await asyncio.sleep(3600)   # stream for up to 1 hour
+    try:
+        async with BleakClient(pen.address) as client:
+            print("Connected. Start writing...")
+            await client.start_notify(PEN_DATA_CHAR, on_dot)
+            await asyncio.sleep(3600)   # stream for up to 1 hour
+    except Exception as e:
+        print(f"Bluetooth connection error: {e}")
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        print("\nDisconnected.")
