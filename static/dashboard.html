@@ -246,11 +246,18 @@ function updateBounds(dots) {
 }
 
 function toCanvas(dot) {
-  const xRange = Math.max(bounds.xMax - bounds.xMin, 1);
-  const yRange = Math.max(bounds.yMax - bounds.yMin, 1);
+  const xRange = bounds.xMax - bounds.xMin;
+  const yRange = bounds.yMax - bounds.yMin;
+  // Uniform scale: same pixels-per-unit for both axes
+  const scale = Math.min(
+    CANVAS_W / Math.max(xRange, 1),
+    CANVAS_H / Math.max(yRange, 1)
+  );
+  const usedW = xRange * scale;
+  const usedH = yRange * scale;
   return {
-    cx: PADDING + ((dot.x - bounds.xMin) / xRange) * CANVAS_W,
-    cy: PADDING + ((dot.y - bounds.yMin) / yRange) * CANVAS_H,
+    cx: PADDING + (CANVAS_W - usedW) / 2 + (dot.x - bounds.xMin) * scale,
+    cy: PADDING + (CANVAS_H - usedH) / 2 + (dot.y - bounds.yMin) * scale,
   };
 }
 
