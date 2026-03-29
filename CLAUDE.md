@@ -39,6 +39,7 @@ inktutor/
 ├── .env.example        copy to .env, add API keys
 ├── pen_host.py         runs on Mac host — BLE pen listener
 ├── tutor.py            runs in Docker — AI tutor loop
+├── nodes.py            AI pipeline node definitions and prompts
 ├── ai_graph.py         LangGraph multi-node pipeline layer
 ├── dashboard.py        runs in Docker — real-time monitoring dashboard
 └── static/
@@ -83,11 +84,16 @@ echo '{"x":100,"y":200,"pressure":500,"ts":'$(date +%s.%N)',"type":"dot"}' >> /t
 - Accumulates dots into a stroke buffer
 - Fires when pen has been idle for `PAUSE_THRESHOLD_SECONDS`
 - Renders dots onto a white 1200×900 canvas using Pillow
-- Sends the PNG + problem text to an AI vision model via LangChain
-- Provider configured via a typed dataclass passed to `AIConnect`
+- Runs the AI graph from `nodes.py` and speaks the response
 - Speaks the response via `pyttsx3` (default) or ElevenLabs
 - Logs each AI response to `/tmp/inktutor/ai_responses.jsonl` for the dashboard
 - Resets idle timer after each AI call
+
+### nodes.py
+- Defines `ANALYZE_PROMPT` and `TUTOR_PROMPT` — the system prompts that
+  control AI behaviour (highest-leverage thing to iterate on)
+- `build_graph()` wires up the 2-node pipeline: analyze (vision) → tutor (text)
+- Analyzer uses OpenRouter (Gemini Flash), tutor uses Anthropic (Haiku)
 
 ### dashboard.py
 - FastAPI app with a WebSocket endpoint (`/ws`) on port 8080
@@ -216,8 +222,8 @@ The system prompt instructs Claude to:
 - Identify the exact step where an error occurred
 - Sound like a friendly older student, not a teacher
 
-Tweak the system prompt in `tutor.py` → `SYSTEM_PROMPT` to adjust behaviour.
-This is the highest-leverage thing to iterate on.
+Tweak the system prompts in `nodes.py` (`ANALYZE_PROMPT`, `TUTOR_PROMPT`)
+to adjust behaviour. This is the highest-leverage thing to iterate on.
 
 ## Swapping TTS
 
