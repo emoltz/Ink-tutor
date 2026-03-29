@@ -39,6 +39,7 @@ inktutor/
 ├── .env.example        copy to .env, add API keys
 ├── pen_host.py         runs on Mac host — BLE pen listener
 ├── tutor.py            runs in Docker — AI tutor loop
+├── ai_graph.py         LangGraph multi-node pipeline layer
 ├── dashboard.py        runs in Docker — real-time monitoring dashboard
 └── static/
     └── dashboard.html  single-page dashboard frontend
@@ -134,6 +135,77 @@ ai = AIConnect(system_prompt=SYSTEM_PROMPT,
                    model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],
                ))
 ```
+
+## LangGraph Multi-Node Pipelines
+
+For multi-step AI workflows, use `ai_graph.py` which layers LangGraph on top
+of `ai_connect.py`. Each graph node gets its own model, system prompt, and
+config — swap models per-node with zero friction.
+
+### Single node (equivalent to AIConnect.ask)
+
+```python
+from ai_graph import TutorGraph, GraphNode
+from ai_connect import AnthropicConfig
+
+graph = (TutorGraph()
+    .add_node(GraphNode(
+        name="tutor",
+        system_prompt=SYSTEM_PROMPT,
+        config=AnthropicConfig(api_key="sk-ant-..."),
+    ))
+    .set_entry("tutor")
+    .add_edge("tutor", "end"))
+
+response = graph.run(image_b64="...", prompt="What do you see?")
+```
+
+### Multi-node with conditional routing
+
+Use a cheap/fast model for triage, then route to a stronger model only when
+the student needs help:
+
+```python
+from ai_graph import TutorGraph, GraphNode
+from ai_connect import AnthropicConfig, OpenRouterConfig, OPENROUTER_VISION_MODELS
+
+analyzer = GraphNode(
+    name="analyze",
+    system_prompt="Respond OK if correct, ERROR if wrong.",
+    config=OpenRouterConfig(
+        api_key="sk-or-...",
+        model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],
+    ),
+)
+tutor = GraphNode(
+    name="tutor",
+    system_prompt=SYSTEM_PROMPT,
+    config=AnthropicConfig(api_key="sk-ant-...", max_tokens=200),
+)
+
+def route(state):
+    return "ok" if state["response"].strip().upper() == "OK" else "needs_help"
+
+graph = (TutorGraph()
+    .add_node(analyzer)
+    .add_node(tutor)
+    .set_entry("analyze")
+    .add_conditional_edge("analyze", route, {"ok": "end", "needs_help": "tutor"})
+    .add_edge("tutor", "end"))
+```
+
+### Key concepts
+
+- **`TutorState`** — TypedDict flowing through every node (image, prompt,
+  response, route, per-node outputs)
+- **`GraphNode`** — callable dataclass wrapping its own LLM + system prompt.
+  Accepts an optional `input_formatter` for custom input extraction.
+- **`TutorGraph`** — fluent builder: `add_node()`, `set_entry()`,
+  `add_edge()`, `add_conditional_edge()`, `compile()`, `run()`
+- Routing is done via plain Python functions — no LLM call needed for simple
+  cases like checking if the response is "OK"
+- `node_outputs` dict in state gives access to every node's output by name
+- Pass `callbacks` to `graph.run()` for Langfuse integration
 
 ## AI Tutor Behaviour
 
