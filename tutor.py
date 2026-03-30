@@ -154,7 +154,7 @@ async def main():
             print(f"Warning: Langfuse init failed, tracing disabled: {e}")
 
     # Hardcoded for now — later read from worksheet QR code
-    current_problem = "Solve: 3/4 + 1/6"
+    current_problem = "Draw a rectangle and label its edges"
 
     print(f"InkTutor ready. Problem: {current_problem}")
     print(f"Watching {STROKE_FILE} for strokes...")
