@@ -232,6 +232,12 @@ let lastDotTs = 0;
 let pressureSum = 0;
 let recentDotTimestamps = [];
 
+// Draw mode stroke state
+let drawStrokes = [];
+let currentDrawStroke = null;
+let localDotTs = new Set();
+let drawDotCount = 0;
+
 // --- Normalization & Drawing ---
 
 function updateBounds(dots) {
@@ -269,16 +275,37 @@ function drawDot(dot) {
   ctx.fill();
 }
 
+function drawStrokePath(stroke) {
+  if (!stroke || stroke.length === 0) return;
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  if (stroke.length === 1) {
+    ctx.beginPath();
+    ctx.arc(stroke[0].x, stroke[0].y, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#000";
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(stroke[0].x, stroke[0].y);
+    for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+    ctx.stroke();
+  }
+}
+
 function redrawAll() {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   for (const dot of allDots) drawDot(dot);
+  for (const stroke of drawStrokes) drawStrokePath(stroke);
+  if (currentDrawStroke) drawStrokePath(currentDrawStroke);
 }
 
 // --- Stats ---
 
 function updateStats() {
-  document.getElementById("dotCount").textContent = allDots.length.toLocaleString();
+  document.getElementById("dotCount").textContent = (allDots.length + drawDotCount).toLocaleString();
 
   const now = Date.now() / 1000;
   recentDotTimestamps = recentDotTimestamps.filter(t => now - t < 1);
@@ -356,21 +383,31 @@ function connectWS() {
     const msg = JSON.parse(event.data);
 
     if (msg.type === "dots") {
-      const newDots = msg.data;
-      const prevLen = allDots.length;
-      allDots.push(...newDots);
+      const allNewDots = msg.data;
 
-      for (const d of newDots) {
+      // Update stats for all dots, but filter locally-drawn ones from rendering
+      const penDots = [];
+      for (const d of allNewDots) {
         pressureSum += d.pressure || 0;
         if (d.ts > lastDotTs) lastDotTs = d.ts;
         recentDotTimestamps.push(d.ts);
+        if (localDotTs.has(d.ts)) {
+          localDotTs.delete(d.ts);
+        } else {
+          penDots.push(d);
+        }
       }
 
-      const boundsChanged = updateBounds(newDots);
-      if (boundsChanged && prevLen > 0) {
-        redrawAll();
-      } else {
-        for (const dot of newDots) drawDot(dot);
+      const prevLen = allDots.length;
+      allDots.push(...penDots);
+
+      if (penDots.length > 0) {
+        const boundsChanged = updateBounds(penDots);
+        if (boundsChanged && prevLen > 0) {
+          redrawAll();
+        } else {
+          for (const dot of penDots) drawDot(dot);
+        }
       }
 
       updateStats();
@@ -408,23 +445,61 @@ function canvasPos(e) {
   };
 }
 
-async function sendDot(e) {
-  if (!drawMode || !isDrawing) return;
-  const now = Date.now();
-  if (now - lastInjectTs < 20) return; // throttle to ~50 dots/sec
-  lastInjectTs = now;
-  const { x, y } = canvasPos(e);
-  await fetch("/inject", {
+function injectDot(pos) {
+  const ts = Date.now() / 1000;
+  localDotTs.add(ts);
+  drawDotCount++;
+  fetch("/inject", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ x, y, pressure: 512, ts: now / 1000, type: "dot" }),
+    body: JSON.stringify({ x: pos.x, y: pos.y, pressure: 512, ts, type: "dot" }),
   }).catch(() => {});
 }
 
-canvas.addEventListener("mousedown", (e) => { if (drawMode) { isDrawing = true; sendDot(e); } });
-canvas.addEventListener("mousemove", sendDot);
-canvas.addEventListener("mouseup", () => { isDrawing = false; });
-canvas.addEventListener("mouseleave", () => { isDrawing = false; });
+function startDraw(e) {
+  if (!drawMode) return;
+  isDrawing = true;
+  const pos = canvasPos(e);
+  currentDrawStroke = [pos];
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  injectDot(pos);
+}
+
+function continueDraw(e) {
+  if (!drawMode || !isDrawing || !currentDrawStroke) return;
+  const now = Date.now();
+  if (now - lastInjectTs < 20) return;
+  lastInjectTs = now;
+  const pos = canvasPos(e);
+  const prev = currentDrawStroke[currentDrawStroke.length - 1];
+  ctx.beginPath();
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.moveTo(prev.x, prev.y);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+  currentDrawStroke.push(pos);
+  injectDot(pos);
+}
+
+function endDraw() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  if (currentDrawStroke && currentDrawStroke.length > 0) {
+    drawStrokes.push([...currentDrawStroke]);
+  }
+  currentDrawStroke = null;
+}
+
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", continueDraw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mouseleave", endDraw);
 
 // --- Clear ---
 
@@ -437,6 +512,10 @@ async function clearSession() {
   lastDotTs = 0;
   pressureSum = 0;
   recentDotTimestamps = [];
+  drawStrokes = [];
+  currentDrawStroke = null;
+  localDotTs = new Set();
+  drawDotCount = 0;
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   document.getElementById("dotCount").textContent = "0";

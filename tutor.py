@@ -59,13 +59,15 @@ def read_new_dots() -> list[dict]:
     return dots
 
 
+STROKE_GAP_SECONDS = 0.3  # time gap that marks a new stroke
+
+
 def render_strokes(dots: list[dict]) -> str:
-    """Render dot list to a base64-encoded PNG."""
+    """Render dot list to a base64-encoded PNG with line interpolation."""
     img = Image.new("RGB", CANVAS_SIZE, "white")
     draw = ImageDraw.Draw(img)
 
     if dots:
-        # Normalise coordinates to canvas
         xs = [d["x"] for d in dots if "x" in d]
         ys = [d["y"] for d in dots if "y" in d]
         if not xs or not ys:
@@ -79,13 +81,28 @@ def render_strokes(dots: list[dict]) -> str:
             padding = 80
             w = CANVAS_SIZE[0] - padding * 2
             h = CANVAS_SIZE[1] - padding * 2
+            scale = min(w / x_range, h / y_range)
+            used_w = x_range * scale
+            used_h = y_range * scale
 
+            def to_canvas(d):
+                cx = int(padding + (w - used_w) / 2 + (d["x"] - x_min) * scale)
+                cy = int(padding + (h - used_h) / 2 + (d["y"] - y_min) * scale)
+                return cx, cy
+
+            prev_pos = None
+            prev_ts = None
             for dot in dots:
                 try:
-                    cx = padding + int((dot["x"] - x_min) / x_range * w)
-                    cy = padding + int((dot["y"] - y_min) / y_range * h)
-                    r = DOT_RADIUS
-                    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="black")
+                    cx, cy = to_canvas(dot)
+                    ts = dot.get("ts", 0)
+                    if prev_pos and prev_ts and (ts - prev_ts) < STROKE_GAP_SECONDS:
+                        draw.line([prev_pos, (cx, cy)], fill="black", width=3)
+                    else:
+                        r = DOT_RADIUS
+                        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="black")
+                    prev_pos = (cx, cy)
+                    prev_ts = ts
                 except (KeyError, ValueError, ZeroDivisionError) as e:
                     print(f"Warning: skipping malformed dot {dot}: {e}")
 
