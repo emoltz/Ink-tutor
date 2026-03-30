@@ -35,6 +35,7 @@ class OpenRouterVisionModel(StrEnum):
         "mistralai/mistral-small-3.2-24b-instruct"  # latest, vision + tool calling
     )
     MISTRAL_SMALL_3_1 = "mistralai/mistral-small-3.1-24b-instruct"  # solid, widely used
+    MISTRAL_3B = "mistralai/ministral-3b-2512"
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────

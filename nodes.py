@@ -39,6 +39,26 @@ Rules:
 """
 
 
+RAW_DESCRIBE_PROMPT = """Describe exactly what you see drawn or written in this image.
+Be literal and specific: shapes, lines, letters, numbers, symbols.
+No interpretation, no evaluation, no questions."""
+
+
+def build_describe_graph() -> TutorGraph:
+    """Single-node graph: vision model describes what it sees. For prototyping only."""
+    describer = GraphNode(
+        name="describe",
+        system_prompt=RAW_DESCRIBE_PROMPT,
+        config=OpenRouterConfig(model=OpenRouterVisionModel.MISTRAL_3B),
+    )
+    return (
+        TutorGraph()
+        .add_node(describer)
+        .set_entry("describe")
+        .add_edge("describe", "end")
+    )
+
+
 def build_graph() -> TutorGraph:
     """Build the 2-node pipeline: analyze image → Socratic tutor."""
     analyzer = GraphNode(

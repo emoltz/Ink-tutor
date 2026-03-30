@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from nodes import build_graph
+from nodes import build_describe_graph
 
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallback
@@ -160,7 +160,9 @@ def speak(text: str):
 async def main():
     global last_dot_time
 
-    graph = build_graph()
+    # ---- commenting out for prototyping ---
+    # graph = build_graph()
+    graph = build_describe_graph()
 
     langfuse_handler = None
     if _LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
