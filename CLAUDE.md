@@ -116,30 +116,19 @@ echo '{"x":100,"y":200,"pressure":500,"ts":'$(date +%s.%N)',"type":"dot"}' >> /t
 
 ## Switching AI Provider
 
-Edit the `AIConnect` instantiation in `tutor.py`. All provider options live in `ai_connect.py`:
+Edit the `GraphNode` configs in `nodes.py`. All provider config classes live in `ai_connect.py`:
 
 ```python
-# Anthropic (default)
-from ai_connect import AIConnect, AnthropicConfig
-ai = AIConnect(system_prompt=SYSTEM_PROMPT,
-               config=AnthropicConfig(api_key="sk-ant-..."))
+from ai_connect import AnthropicConfig, OpenAIConfig, OpenRouterConfig, OpenRouterVisionModel
+
+# Anthropic
+config=AnthropicConfig(model="claude-haiku-4-5")
 
 # OpenAI
-from ai_connect import AIConnect, OpenAIConfig
-ai = AIConnect(system_prompt=SYSTEM_PROMPT,
-               config=OpenAIConfig(api_key="sk-...", model="gpt-4o"))
+config=OpenAIConfig(model="gpt-4o")
 
 # OpenRouter — swap any vision model without changing anything else
-from ai_connect import AIConnect, OpenRouterConfig, OPENROUTER_VISION_MODELS
-# Available keys: claude-opus-4-6, claude-sonnet-4-6 (default), claude-haiku-4-5,
-#                 gemini-3-pro, gemini-3-flash, gemini-2.5-pro, gemini-2.5-flash,
-#                 gemini-2.0-flash, gpt-4o, gpt-4o-mini, o4-mini,
-#                 llama-4-maverick, llama-4-scout, mistral-small-3.2, mistral-small-3.1
-ai = AIConnect(system_prompt=SYSTEM_PROMPT,
-               config=OpenRouterConfig(
-                   api_key="sk-or-...",
-                   model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],
-               ))
+config=OpenRouterConfig(model=OpenRouterVisionModel.GEMINI_3_1_FLASH_LITE_PREVIEW)
 ```
 
 ## LangGraph Multi-Node Pipelines

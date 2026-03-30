@@ -16,6 +16,13 @@ from PIL import Image, ImageDraw
 
 from nodes import build_graph
 
+try:
+    from langfuse.langchain import CallbackHandler as LangfuseCallback
+
+    _LANGFUSE_AVAILABLE = True
+except ImportError:
+    _LANGFUSE_AVAILABLE = False
+
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE = Path("/tmp/inktutor/strokes.jsonl")
 AI_LOG_FILE = Path("/tmp/inktutor/ai_responses.jsonl")
@@ -138,6 +145,14 @@ async def main():
 
     graph = build_graph()
 
+    langfuse_handler = None
+    if _LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
+        try:
+            langfuse_handler = LangfuseCallback()
+            print("Langfuse tracing enabled.")
+        except Exception as e:
+            print(f"Warning: Langfuse init failed, tracing disabled: {e}")
+
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Solve: 3/4 + 1/6"
 
@@ -145,37 +160,42 @@ async def main():
     print(f"Watching {STROKE_FILE} for strokes...")
     print(f"Pause threshold: {PAUSE_THRESHOLD}s\n")
 
-    while True:
-        new_dots = read_new_dots()
+    try:
+        while True:
+            new_dots = read_new_dots()
 
-        if new_dots:
-            strokes.extend(new_dots)
-            last_dot_time = time.time()
+            if new_dots:
+                strokes.extend(new_dots)
+                last_dot_time = time.time()
 
-        elif strokes and last_dot_time:
-            idle = time.time() - last_dot_time
+            elif strokes and last_dot_time:
+                idle = time.time() - last_dot_time
 
-            if idle >= PAUSE_THRESHOLD:
-                print(f"Pause detected ({idle:.1f}s). Analysing work...")
-                last_dot_time = 0.0  # reset immediately so a failure doesn't re-fire
-                try:
-                    image_b64 = render_strokes(strokes)
-                    prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
-                    feedback = graph.run(
-                        image_b64=image_b64,
-                        prompt=prompt,
-                        metadata={
-                            "problem": current_problem,
-                            "dot_count": len(strokes),
-                        },
-                    )
-                    log_ai_response(feedback, len(strokes))
-                    print(f"AI: {feedback}")
-                    speak(feedback)
-                except Exception as e:
-                    print(f"Error during AI analysis: {e}")
+                if idle >= PAUSE_THRESHOLD:
+                    print(f"Pause detected ({idle:.1f}s). Analysing work...")
+                    last_dot_time = 0.0  # reset immediately so a failure doesn't re-fire
+                    try:
+                        image_b64 = render_strokes(strokes)
+                        prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
+                        feedback = graph.run(
+                            image_b64=image_b64,
+                            prompt=prompt,
+                            metadata={
+                                "problem": current_problem,
+                                "dot_count": len(strokes),
+                            },
+                            callbacks=[langfuse_handler] if langfuse_handler else None,
+                        )
+                        log_ai_response(feedback, len(strokes))
+                        print(f"AI: {feedback}")
+                        speak(feedback)
+                    except Exception as e:
+                        print(f"Error during AI analysis: {e}")
 
-        await asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)
+    finally:
+        if langfuse_handler:
+            langfuse_handler.flush()
 
 
 if __name__ == "__main__":
