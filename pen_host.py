@@ -118,6 +118,7 @@ class PenProtocol:
 
     # Called by bleak on every BLE notification
     def on_notify(self, _, data: bytearray):
+        print(f"  RAW notify ({len(data)}b): {data.hex()}", flush=True)
         self._buf.extend(data)
         self._drain_buffer()
 
