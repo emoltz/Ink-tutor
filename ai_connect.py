@@ -46,7 +46,7 @@ except ImportError:
     _LANGFUSE_AVAILABLE = False
 
 
-# ── Known-good OpenRouter vision models ──────────────────────────────────────
+# ── OpenRouter vision models ──────────────────────────────────────
 # All models listed here support base64-encoded image input.
 # Values are OpenRouter model IDs; pass them as OpenRouterConfig(model=...).
 class OpenRouterVisionModel(StrEnum):
@@ -64,8 +64,6 @@ class OpenRouterVisionModel(StrEnum):
         "mistralai/mistral-small-3.2-24b-instruct"  # latest, vision + tool calling
     )
     MISTRAL_SMALL_3_1 = "mistralai/mistral-small-3.1-24b-instruct"  # solid, widely used
-    # OPENAI :(
-    OPENAI_GPT_5_MINI = "openai/gpt-5-mini"
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────
@@ -85,7 +83,7 @@ class AnthropicConfig:
 @dataclass
 class OpenAIConfig:
     api_key: str | None = None
-    model: str = "gpt-4o"
+    model: str = "gpt-5-mini"
     max_tokens: int = 100
 
     def __post_init__(self):
