@@ -1,4 +1,5 @@
 """Tests for pen_host.parse_dot()."""
+
 import struct
 
 import pen_host
@@ -7,9 +8,9 @@ import pen_host
 def _make_packet(x: int, y: int, pressure: int) -> bytearray:
     """Build a minimal 12-byte Neo dot packet."""
     data = bytearray(12)
-    struct.pack_into(">I", data, 0, x)       # bytes 0-3
-    struct.pack_into(">I", data, 4, y)       # bytes 4-7
-    struct.pack_into(">H", data, 8, pressure) # bytes 8-9
+    struct.pack_into(">I", data, 0, x)  # bytes 0-3
+    struct.pack_into(">I", data, 4, y)  # bytes 4-7
+    struct.pack_into(">H", data, 8, pressure)  # bytes 8-9
     # bytes 10-11 unused (not read by parse_dot)
     return data
 

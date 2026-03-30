@@ -1,4 +1,5 @@
 """Tests for ai_graph.py — GraphNode, TutorGraph builder, and routing."""
+
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -6,8 +7,8 @@ import pytest
 
 from ai_connect import AnthropicConfig, OpenAIConfig
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _mock_build_llm(response_text="  Some feedback  "):
     """Return a patched _build_llm that produces a mock LLM."""
@@ -21,6 +22,7 @@ def _make_node(name="tutor", response_text="  Some feedback  ", **kwargs):
     patcher, mock_llm = _mock_build_llm(response_text)
     with patcher:
         from ai_graph import GraphNode
+
         node = GraphNode(
             name=name,
             system_prompt="You are a tutor.",
@@ -33,13 +35,16 @@ def _make_node(name="tutor", response_text="  Some feedback  ", **kwargs):
 
 # ── GraphNode ────────────────────────────────────────────────────────────────
 
+
 class TestGraphNode:
     def test_builds_llm_on_init(self):
         patcher, mock_llm = _mock_build_llm()
         with patcher as mock_factory:
             from ai_graph import GraphNode
+
             node = GraphNode(
-                name="n", system_prompt="sp",
+                name="n",
+                system_prompt="sp",
                 config=AnthropicConfig(api_key="k"),
             )
         mock_factory.assert_called_once()
@@ -57,7 +62,8 @@ class TestGraphNode:
     def test_call_preserves_existing_node_outputs(self):
         node = _make_node(name="second")
         state = {
-            "image_b64": "img", "prompt": "p",
+            "image_b64": "img",
+            "prompt": "p",
             "node_outputs": {"first": "earlier"},
         }
         result = node(state)
@@ -137,64 +143,65 @@ class TestGraphNode:
 
 # ── TutorGraph builder ──────────────────────────────────────────────────────
 
+
 class TestTutorGraphBuilder:
     def test_compile_raises_without_entry(self):
         from ai_graph import TutorGraph
+
         graph = TutorGraph()
         with pytest.raises(ValueError, match="entry point"):
             graph.compile()
 
     def test_add_node_returns_self(self):
         from ai_graph import TutorGraph
+
         graph = TutorGraph()
         node = _make_node()
         assert graph.add_node(node) is graph
 
     def test_set_entry_returns_self(self):
         from ai_graph import TutorGraph
+
         graph = TutorGraph()
         assert graph.set_entry("x") is graph
 
     def test_add_edge_returns_self(self):
         from ai_graph import TutorGraph
+
         graph = TutorGraph()
         assert graph.add_edge("a", "b") is graph
 
     def test_add_conditional_edge_returns_self(self):
         from ai_graph import TutorGraph
+
         graph = TutorGraph()
         assert graph.add_conditional_edge("a", lambda s: "x", {"x": "b"}) is graph
 
     def test_fluent_chaining(self):
         from ai_graph import TutorGraph
+
         node = _make_node()
-        graph = (TutorGraph()
-            .add_node(node)
-            .set_entry("tutor")
-            .add_edge("tutor", "end"))
+        graph = TutorGraph().add_node(node).set_entry("tutor").add_edge("tutor", "end")
         assert isinstance(graph, TutorGraph)
 
 
 # ── TutorGraph.run (integration with mocked LLMs) ───────────────────────────
 
+
 class TestTutorGraphRun:
     def test_single_node_returns_response(self):
         from ai_graph import TutorGraph
+
         node = _make_node(response_text="What step is next?")
-        graph = (TutorGraph()
-            .add_node(node)
-            .set_entry("tutor")
-            .add_edge("tutor", "end"))
+        graph = TutorGraph().add_node(node).set_entry("tutor").add_edge("tutor", "end")
         result = graph.run(image_b64="img", prompt="Solve 3/4+1/6")
         assert result == "What step is next?"
 
     def test_single_node_passes_metadata(self):
         from ai_graph import TutorGraph
+
         node = _make_node()
-        graph = (TutorGraph()
-            .add_node(node)
-            .set_entry("tutor")
-            .add_edge("tutor", "end"))
+        graph = TutorGraph().add_node(node).set_entry("tutor").add_edge("tutor", "end")
         # Should not raise
         graph.run(image_b64="img", prompt="p", metadata={"problem": "test"})
 
@@ -207,15 +214,21 @@ class TestTutorGraphRun:
         def route(state):
             return "ok" if state["response"].strip().upper() == "OK" else "needs_help"
 
-        graph = (TutorGraph()
+        graph = (
+            TutorGraph()
             .add_node(analyzer)
             .add_node(tutor)
             .set_entry("analyze")
-            .add_conditional_edge("analyze", route, {
-                "ok": "end",
-                "needs_help": "tutor",
-            })
-            .add_edge("tutor", "end"))
+            .add_conditional_edge(
+                "analyze",
+                route,
+                {
+                    "ok": "end",
+                    "needs_help": "tutor",
+                },
+            )
+            .add_edge("tutor", "end")
+        )
 
         result = graph.run(image_b64="img", prompt="p")
         # Analyzer said OK → route to end → tutor never called
@@ -231,15 +244,21 @@ class TestTutorGraphRun:
         def route(state):
             return "ok" if state["response"].strip().upper() == "OK" else "needs_help"
 
-        graph = (TutorGraph()
+        graph = (
+            TutorGraph()
             .add_node(analyzer)
             .add_node(tutor)
             .set_entry("analyze")
-            .add_conditional_edge("analyze", route, {
-                "ok": "end",
-                "needs_help": "tutor",
-            })
-            .add_edge("tutor", "end"))
+            .add_conditional_edge(
+                "analyze",
+                route,
+                {
+                    "ok": "end",
+                    "needs_help": "tutor",
+                },
+            )
+            .add_edge("tutor", "end")
+        )
 
         result = graph.run(image_b64="img", prompt="p")
         assert result == "What did you get for step 2?"
@@ -251,12 +270,14 @@ class TestTutorGraphRun:
         first = _make_node(name="first", response_text="step-one-done")
         second = _make_node(name="second", response_text="final answer")
 
-        graph = (TutorGraph()
+        graph = (
+            TutorGraph()
             .add_node(first)
             .add_node(second)
             .set_entry("first")
             .add_edge("first", "second")
-            .add_edge("second", "end"))
+            .add_edge("second", "end")
+        )
 
         result = graph.run(image_b64="img", prompt="p")
         assert result == "final answer"
@@ -272,24 +293,28 @@ class TestTutorGraphRun:
 
         with patcher1:
             node1 = GraphNode(
-                name="claude", system_prompt="sp",
+                name="claude",
+                system_prompt="sp",
                 config=AnthropicConfig(api_key="k1"),
             )
         node1._llm = llm1
 
         with patcher2:
             node2 = GraphNode(
-                name="gpt", system_prompt="sp",
+                name="gpt",
+                system_prompt="sp",
                 config=OpenAIConfig(api_key="k2"),
             )
         node2._llm = llm2
 
-        graph = (TutorGraph()
+        graph = (
+            TutorGraph()
             .add_node(node1)
             .add_node(node2)
             .set_entry("claude")
             .add_edge("claude", "gpt")
-            .add_edge("gpt", "end"))
+            .add_edge("gpt", "end")
+        )
 
         result = graph.run(image_b64="img", prompt="p")
         assert result == "from-openai"
@@ -299,15 +324,18 @@ class TestTutorGraphRun:
 
 # ── TutorState typing ───────────────────────────────────────────────────────
 
+
 class TestTutorState:
     def test_is_typed_dict(self):
         from ai_graph import TutorState
+
         # total=False means all keys are optional
         state: TutorState = {}
         assert isinstance(state, dict)
 
     def test_accepts_all_expected_keys(self):
         from ai_graph import TutorState
+
         state: TutorState = {
             "image_b64": "abc",
             "prompt": "hello",

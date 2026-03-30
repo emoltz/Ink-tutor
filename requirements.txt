@@ -22,3 +22,6 @@ langfuse
 
 # Testing
 pytest
+
+# Formatting
+black

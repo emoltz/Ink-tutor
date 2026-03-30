@@ -49,8 +49,8 @@ from langgraph.graph import END, StateGraph
 
 from ai_connect import ProviderConfig, _build_llm
 
-
 # ── Graph state ─────────────────────────────────────────────────────────────
+
 
 class TutorState(TypedDict, total=False):
     """State that flows through every node in the graph."""
@@ -61,12 +61,13 @@ class TutorState(TypedDict, total=False):
     metadata: dict[str, Any]
 
     # Outputs — written by nodes
-    response: str                    # current / final text response
-    route: str                       # routing key for conditional edges
-    node_outputs: dict[str, str]     # per-node output history keyed by node name
+    response: str  # current / final text response
+    route: str  # routing key for conditional edges
+    node_outputs: dict[str, str]  # per-node output history keyed by node name
 
 
 # ── Graph node ──────────────────────────────────────────────────────────────
+
 
 @dataclass
 class GraphNode:
@@ -101,7 +102,9 @@ class GraphNode:
             try:
                 image_b64, prompt = self.input_formatter(state)
             except Exception as e:
-                raise RuntimeError(f"Node '{self.name}' input_formatter failed: {e}") from e
+                raise RuntimeError(
+                    f"Node '{self.name}' input_formatter failed: {e}"
+                ) from e
         else:
             image_b64 = state.get("image_b64", "")
             prompt = state.get("prompt", "")
@@ -109,10 +112,12 @@ class GraphNode:
         # Build content blocks — include image only when present
         content: list[dict[str, Any]] = []
         if image_b64:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-            })
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                }
+            )
         content.append({"type": "text", "text": prompt})
 
         messages = [
@@ -128,7 +133,9 @@ class GraphNode:
         try:
             text = result.content.strip()
         except AttributeError as e:
-            raise RuntimeError(f"Node '{self.name}' got unexpected response format: {e}") from e
+            raise RuntimeError(
+                f"Node '{self.name}' got unexpected response format: {e}"
+            ) from e
 
         node_outputs = dict(state.get("node_outputs") or {})
         node_outputs[self.name] = text
@@ -137,6 +144,7 @@ class GraphNode:
 
 
 # ── Graph builder ───────────────────────────────────────────────────────────
+
 
 class TutorGraph:
     """Fluent builder for LangGraph pipelines of ``GraphNode`` instances.
@@ -244,9 +252,7 @@ class TutorGraph:
             invoke_config["callbacks"] = callbacks
             invoke_config["run_name"] = "ink-tutor-graph"
         try:
-            final_state = compiled.invoke(
-                initial_state, config=invoke_config or None
-            )
+            final_state = compiled.invoke(initial_state, config=invoke_config or None)
         except Exception as e:
             raise RuntimeError(f"Graph execution failed: {e}") from e
 

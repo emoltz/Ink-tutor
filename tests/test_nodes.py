@@ -1,4 +1,5 @@
 """Tests for nodes.py — prompt definitions and graph wiring."""
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -43,6 +44,7 @@ class TestBuildGraph:
         patcher, _ = _mock_build_llm()
         with patcher, patch.dict(os.environ, _FAKE_ENV):
             from nodes import build_graph
+
             return build_graph()
 
     def test_returns_tutor_graph(self):
@@ -70,7 +72,9 @@ class TestBuildGraph:
         tutor_node = graph._nodes["tutor"]
         state = {
             "prompt": "Solve: 3/4 + 1/6",
-            "node_outputs": {"analyze": "STATUS: ERROR\nStudent wrote 3/4 + 1/6 = 4/10"},
+            "node_outputs": {
+                "analyze": "STATUS: ERROR\nStudent wrote 3/4 + 1/6 = 4/10"
+            },
         }
         image, text = tutor_node.input_formatter(state)
         assert image == ""

@@ -1,4 +1,5 @@
 """Tests for dashboard.py — read_lines_from utility and FastAPI routes."""
+
 import json
 from pathlib import Path
 
@@ -7,8 +8,8 @@ from fastapi.testclient import TestClient
 
 from dashboard import app, read_lines_from
 
-
 # ── read_lines_from ───────────────────────────────────────────────────────────
+
 
 class TestReadLinesFrom:
     def test_missing_file_returns_empty_and_same_position(self, tmp_path):
@@ -68,6 +69,7 @@ class TestReadLinesFrom:
 
 # ── FastAPI routes ────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """TestClient with file paths redirected to tmp_path."""
@@ -124,7 +126,9 @@ class TestDashboardRoutes:
     def test_clear_with_missing_files_does_not_crash(self, tmp_path, monkeypatch):
         import dashboard
 
-        monkeypatch.setattr(dashboard, "STROKE_FILE", tmp_path / "missing_strokes.jsonl")
+        monkeypatch.setattr(
+            dashboard, "STROKE_FILE", tmp_path / "missing_strokes.jsonl"
+        )
         monkeypatch.setattr(dashboard, "AI_LOG_FILE", tmp_path / "missing_ai.jsonl")
 
         c = TestClient(app)

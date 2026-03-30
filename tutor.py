@@ -17,12 +17,12 @@ from PIL import Image, ImageDraw
 from nodes import build_graph
 
 # ── Config ──────────────────────────────────────────────────────────────────
-STROKE_FILE         = Path("/tmp/inktutor/strokes.jsonl")
-AI_LOG_FILE         = Path("/tmp/inktutor/ai_responses.jsonl")
-PAUSE_THRESHOLD     = float(os.getenv("PAUSE_THRESHOLD_SECONDS", "3.0"))
-CANVAS_SIZE         = (1200, 900)
-DOT_RADIUS          = 3
-TTS_ENGINE          = os.getenv("TTS_ENGINE", "pyttsx3")
+STROKE_FILE = Path("/tmp/inktutor/strokes.jsonl")
+AI_LOG_FILE = Path("/tmp/inktutor/ai_responses.jsonl")
+PAUSE_THRESHOLD = float(os.getenv("PAUSE_THRESHOLD_SECONDS", "3.0"))
+CANVAS_SIZE = (1200, 900)
+DOT_RADIUS = 3
+TTS_ENGINE = os.getenv("TTS_ENGINE", "pyttsx3")
 
 # ── Stroke buffer ────────────────────────────────────────────────────────────
 strokes: list[dict] = []
@@ -87,7 +87,6 @@ def render_strokes(dots: list[dict]) -> str:
     return base64.standard_b64encode(buf.getvalue()).decode()
 
 
-
 def log_ai_response(feedback: str, dot_count: int):
     """Append AI response to log file for dashboard consumption."""
     entry = {"ts": time.time(), "feedback": feedback, "dot_count": dot_count}
@@ -109,6 +108,7 @@ def speak(text: str):
     try:
         if TTS_ENGINE == "elevenlabs":
             from elevenlabs import ElevenLabs
+
             api_key = os.environ.get("ELEVENLABS_API_KEY")
             if not api_key:
                 print("Warning: ELEVENLABS_API_KEY not set — skipping speech")
@@ -122,6 +122,7 @@ def speak(text: str):
             SPEECH_FILE.write_bytes(b"".join(audio))
         else:
             import subprocess
+
             # espeak-ng writes directly to WAV; no audio device needed in Docker
             subprocess.run(
                 ["espeak-ng", "-w", str(SPEECH_FILE), "-s", "160", text],
@@ -163,7 +164,10 @@ async def main():
                     feedback = graph.run(
                         image_b64=image_b64,
                         prompt=prompt,
-                        metadata={"problem": current_problem, "dot_count": len(strokes)},
+                        metadata={
+                            "problem": current_problem,
+                            "dot_count": len(strokes),
+                        },
                     )
                     log_ai_response(feedback, len(strokes))
                     print(f"AI: {feedback}")

@@ -1,6 +1,7 @@
 """
 Shared fixtures and import-time patches for the InkTutor test suite.
 """
+
 import sys
 from unittest.mock import MagicMock
 
@@ -12,6 +13,7 @@ sys.modules.setdefault("bleak", MagicMock())
 
 
 # ── Common fixtures ───────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def sample_dot():

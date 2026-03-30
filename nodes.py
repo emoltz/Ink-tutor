@@ -8,7 +8,7 @@ Defines the system prompts and graph wiring for the two-node pipeline:
 This is the highest-leverage file to iterate on when tuning AI behaviour.
 """
 
-from ai_connect import AnthropicConfig, OpenRouterConfig, OPENROUTER_VISION_MODELS
+from ai_connect import AnthropicConfig, OpenRouterConfig, OpenRouterVisionModel
 from ai_graph import TutorGraph, GraphNode
 
 ANALYZE_PROMPT = """You are an image analysis assistant looking at a 6th grader's
@@ -44,7 +44,9 @@ def build_graph() -> TutorGraph:
     analyzer = GraphNode(
         name="analyze",
         system_prompt=ANALYZE_PROMPT,
-        config=OpenRouterConfig(model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"]),
+        config=OpenRouterConfig(
+            model=OpenRouterVisionModel.GEMINI_3_1_FLASH_LITE_PREVIEW
+        ),
     )
     tutor = GraphNode(
         name="tutor",
@@ -56,9 +58,11 @@ def build_graph() -> TutorGraph:
             f"Description of their work:\n{state['node_outputs']['analyze']}",
         ),
     )
-    return (TutorGraph()
+    return (
+        TutorGraph()
         .add_node(analyzer)
         .add_node(tutor)
         .set_entry("analyze")
         .add_edge("analyze", "tutor")
-        .add_edge("tutor", "end"))
+        .add_edge("tutor", "end")
+    )

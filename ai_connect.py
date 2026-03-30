@@ -16,16 +16,16 @@ Usage:
     response = ai.ask(image_b64="...", prompt="The student is solving: 3/4 + 1/6")
 
 OpenRouter example:
-    from ai_connect import AIConnect, OpenRouterConfig, OPENROUTER_VISION_MODELS
+    from ai_connect import AIConnect, OpenRouterConfig, OpenRouterVisionModel
 
-    # Use any key from OPENROUTER_VISION_MODELS, or pass an OpenRouter model ID directly:
+    # Use any member from OpenRouterVisionModel, or pass an OpenRouter model ID directly:
     ai = AIConnect(
         system_prompt=SYSTEM_PROMPT,
         config=OpenRouterConfig(
             api_key="sk-or-...",
-            model=OPENROUTER_VISION_MODELS["gemini-2.5-flash"],  # fast and cheap
-            # model=OPENROUTER_VISION_MODELS["gpt-4o"]           # OpenAI alternative
-            # model="anthropic/claude-opus-4-6"                  # or pass ID directly
+            model=OpenRouterVisionModel.GEMINI_3_FLASH_PREVIEW,   # fast and cheap
+            # model=OpenRouterVisionModel.CLAUDE_SONNET_4_6        # Anthropic alternative
+            # model="anthropic/claude-opus-4-6"                    # or pass ID directly
         ),
     )
 """
@@ -33,12 +33,14 @@ OpenRouter example:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from enum import StrEnum
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallback
+
     _LANGFUSE_AVAILABLE = True
 except ImportError:
     _LANGFUSE_AVAILABLE = False
@@ -47,31 +49,27 @@ except ImportError:
 # ── Known-good OpenRouter vision models ──────────────────────────────────────
 # All models listed here support base64-encoded image input.
 # Values are OpenRouter model IDs; pass them as OpenRouterConfig(model=...).
-OPENROUTER_VISION_MODELS: dict[str, str] = {
+class OpenRouterVisionModel(StrEnum):
     # Anthropic — Claude 4 family (all support vision)
-    "claude-opus-4-6":   "anthropic/claude-opus-4-6",               # most capable, highest cost
-    "claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",             # default; best speed/cost balance
-    "claude-haiku-4-5":  "anthropic/claude-haiku-4-5",              # fastest, lowest cost
+    CLAUDE_OPUS_4_6 = "anthropic/claude-opus-4-6"  # most capable, highest cost
+    CLAUDE_SONNET_4_6 = (
+        "anthropic/claude-sonnet-4-6"  # default; best speed/cost balance
+    )
+    CLAUDE_HAIKU_4_5 = "anthropic/claude-haiku-4-5"  # fastest, lowest cost
     # Google — Gemini family
-    "gemini-3-pro":      "google/gemini-3-pro-preview",             # latest top-tier, highest cost
-    "gemini-3-flash":    "google/gemini-3-flash-preview",           # latest fast model
-    "gemini-2.5-pro":    "google/gemini-2.5-pro-preview",           # strong reasoning, 1M context
-    "gemini-2.5-flash":  "google/gemini-2.5-flash",                 # fast and cheap, very capable
-    "gemini-2.0-flash":  "google/gemini-2.0-flash-001",             # stable 2.0 Flash checkpoint
-    # OpenAI
-    "gpt-4o":            "openai/gpt-4o",                           # strong vision, widely tested
-    "gpt-4o-mini":       "openai/gpt-4o-mini",                      # lightweight, cost-effective
-    "o4-mini":           "openai/o4-mini",                          # fast reasoning + vision
-    # Meta — Llama 4 multimodal
-    "llama-4-maverick":  "meta-llama/llama-4-maverick",             # large MoE, strong reasoning
-    "llama-4-scout":     "meta-llama/llama-4-scout",                # 10M context, efficient
+    GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
+    GEMINI_3_1_FLASH_LITE_PREVIEW = ("google/gemini-3.1-flash-lite-preview",)
     # Mistral — vision-capable small models
-    "mistral-small-3.2": "mistralai/mistral-small-3.2-24b-instruct",  # latest, vision + tool calling
-    "mistral-small-3.1": "mistralai/mistral-small-3.1-24b-instruct",  # solid, widely used
-}
+    MISTRAL_SMALL_3_2 = (
+        "mistralai/mistral-small-3.2-24b-instruct"  # latest, vision + tool calling
+    )
+    MISTRAL_SMALL_3_1 = "mistralai/mistral-small-3.1-24b-instruct"  # solid, widely used
+    # OPENAI :(
+    OPENAI_GPT_5_MINI = "openai/gpt-5-mini"
 
 
 # ── Provider config dataclasses ──────────────────────────────────────────────
+
 
 @dataclass
 class AnthropicConfig:
@@ -114,9 +112,11 @@ ProviderConfig = AnthropicConfig | OpenAIConfig | OpenRouterConfig
 
 # ── LLM factory ──────────────────────────────────────────────────────────────
 
+
 def _build_llm(config: ProviderConfig):
     if isinstance(config, AnthropicConfig):
         from langchain_anthropic import ChatAnthropic
+
         return ChatAnthropic(
             model=config.model,
             max_tokens=config.max_tokens,
@@ -125,6 +125,7 @@ def _build_llm(config: ProviderConfig):
 
     if isinstance(config, OpenAIConfig):
         from langchain_openai import ChatOpenAI
+
         return ChatOpenAI(
             model=config.model,
             max_tokens=config.max_tokens,
@@ -133,6 +134,7 @@ def _build_llm(config: ProviderConfig):
 
     if isinstance(config, OpenRouterConfig):
         from langchain_openai import ChatOpenAI
+
         return ChatOpenAI(
             model=config.model,
             max_tokens=config.max_tokens,
@@ -148,6 +150,7 @@ def _build_llm(config: ProviderConfig):
 
 
 # ── Main class ────────────────────────────────────────────────────────────────
+
 
 class AIConnect:
     def __init__(self, system_prompt: str, config: ProviderConfig):
@@ -169,17 +172,22 @@ class AIConnect:
         """Send a base64-encoded PNG and a text prompt; return the response."""
         messages = [
             SystemMessage(content=self.system_prompt),
-            HumanMessage(content=[
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                },
-                {"type": "text", "text": prompt},
-            ]),
+            HumanMessage(
+                content=[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                    },
+                    {"type": "text", "text": prompt},
+                ]
+            ),
         ]
         invoke_config: dict | None = None
         if self._langfuse_handler:
-            invoke_config = {"callbacks": [self._langfuse_handler], "run_name": "ink-tutor-analysis"}
+            invoke_config = {
+                "callbacks": [self._langfuse_handler],
+                "run_name": "ink-tutor-analysis",
+            }
             if metadata:
                 invoke_config["metadata"] = metadata
         try:

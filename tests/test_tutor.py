@@ -1,4 +1,5 @@
 """Tests for tutor.py — render_strokes, read_new_dots, log_ai_response."""
+
 import base64
 import json
 from pathlib import Path
@@ -8,8 +9,8 @@ import pytest
 
 import tutor
 
-
 # ── render_strokes ────────────────────────────────────────────────────────────
+
 
 class TestRenderStrokes:
     def test_returns_string(self, sample_dots):
@@ -46,6 +47,7 @@ class TestRenderStrokes:
 
 # ── read_new_dots ─────────────────────────────────────────────────────────────
 
+
 class TestReadNewDots:
     def test_returns_empty_when_file_missing(self, tmp_path, monkeypatch):
         missing = tmp_path / "nope.jsonl"
@@ -80,7 +82,9 @@ class TestReadNewDots:
         tutor.read_new_dots()
         assert tutor.file_position > 0
 
-    def test_incremental_reads_no_duplicates(self, strokes_file, monkeypatch, sample_dots):
+    def test_incremental_reads_no_duplicates(
+        self, strokes_file, monkeypatch, sample_dots
+    ):
         monkeypatch.setattr(tutor, "STROKE_FILE", strokes_file)
         monkeypatch.setattr(tutor, "file_position", 0)
 
@@ -106,6 +110,7 @@ class TestReadNewDots:
 
 
 # ── log_ai_response ───────────────────────────────────────────────────────────
+
 
 class TestLogAiResponse:
     def test_creates_file_and_writes_entry(self, tmp_path, monkeypatch):

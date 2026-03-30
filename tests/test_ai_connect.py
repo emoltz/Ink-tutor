@@ -1,39 +1,54 @@
 """Tests for ai_connect.py — AIConnect class and _build_llm factory."""
+
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_connect import AIConnect, AnthropicConfig, OpenAIConfig, OpenRouterConfig, _build_llm
-
+from ai_connect import (
+    AIConnect,
+    AnthropicConfig,
+    OpenAIConfig,
+    OpenRouterConfig,
+    _build_llm,
+)
 
 # ── _build_llm factory ────────────────────────────────────────────────────────
+
 
 class TestBuildLlm:
     def test_anthropic_config_returns_chat_anthropic(self):
         mock_cls = MagicMock()
-        with patch.dict(sys.modules, {"langchain_anthropic": MagicMock(ChatAnthropic=mock_cls)}):
+        with patch.dict(
+            sys.modules, {"langchain_anthropic": MagicMock(ChatAnthropic=mock_cls)}
+        ):
             result = _build_llm(AnthropicConfig(api_key="fake-key"))
         mock_cls.assert_called_once()
         assert result is mock_cls.return_value
 
     def test_openai_config_returns_chat_openai(self):
         mock_cls = MagicMock()
-        with patch.dict(sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}):
+        with patch.dict(
+            sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}
+        ):
             result = _build_llm(OpenAIConfig(api_key="fake-key"))
         mock_cls.assert_called_once()
         assert result is mock_cls.return_value
 
     def test_openrouter_config_returns_chat_openai(self):
         mock_cls = MagicMock()
-        with patch.dict(sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}):
+        with patch.dict(
+            sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}
+        ):
             result = _build_llm(OpenRouterConfig(api_key="fake-key"))
         mock_cls.assert_called_once()
         assert result is mock_cls.return_value
 
     def test_openrouter_passes_base_url(self):
         mock_cls = MagicMock()
-        with patch.dict(sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}):
+        with patch.dict(
+            sys.modules, {"langchain_openai": MagicMock(ChatOpenAI=mock_cls)}
+        ):
             _build_llm(OpenRouterConfig(api_key="k", base_url="https://custom.ai/v1"))
         _, kwargs = mock_cls.call_args
         assert kwargs.get("openai_api_base") == "https://custom.ai/v1"
@@ -45,6 +60,7 @@ class TestBuildLlm:
 
 # ── AIConnect ─────────────────────────────────────────────────────────────────
 
+
 class TestAIConnect:
     def _make_ai(self, system_prompt="You are a tutor."):
         """Build an AIConnect with a mocked LLM."""
@@ -52,7 +68,9 @@ class TestAIConnect:
         mock_llm.invoke.return_value = MagicMock(content="  What did you try?  ")
 
         with patch("ai_connect._build_llm", return_value=mock_llm):
-            ai = AIConnect(system_prompt=system_prompt, config=AnthropicConfig(api_key="x"))
+            ai = AIConnect(
+                system_prompt=system_prompt, config=AnthropicConfig(api_key="x")
+            )
 
         ai._llm = mock_llm  # keep reference for assertions
         return ai
@@ -104,6 +122,7 @@ class TestAIConnect:
 
 
 # ── Config dataclasses ────────────────────────────────────────────────────────
+
 
 class TestConfigDefaults:
     def test_anthropic_default_model(self):

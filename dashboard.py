@@ -46,7 +46,9 @@ async def index():
     try:
         return HTMLResponse(content=html_path.read_text())
     except OSError as e:
-        return HTMLResponse(content=f"<pre>Dashboard UI not found: {e}</pre>", status_code=500)
+        return HTMLResponse(
+            content=f"<pre>Dashboard UI not found: {e}</pre>", status_code=500
+        )
 
 
 @app.post("/inject")

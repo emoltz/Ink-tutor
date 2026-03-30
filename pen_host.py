@@ -19,9 +19,9 @@ from bleak import BleakClient, BleakScanner
 
 # Neo smartpen BLE service/characteristic UUIDs
 # These are the standard Neo protocol UUIDs
-PEN_DATA_SERVICE     = "19f1bf80-b251-4b3f-8b1c-5b0bbd538d3e"
-PEN_DATA_CHAR        = "19f1bf82-b251-4b3f-8b1c-5b0bbd538d3e"
-PEN_CONTROL_CHAR     = "19f1bf81-b251-4b3f-8b1c-5b0bbd538d3e"
+PEN_DATA_SERVICE = "19f1bf80-b251-4b3f-8b1c-5b0bbd538d3e"
+PEN_DATA_CHAR = "19f1bf82-b251-4b3f-8b1c-5b0bbd538d3e"
+PEN_CONTROL_CHAR = "19f1bf81-b251-4b3f-8b1c-5b0bbd538d3e"
 
 STROKE_FILE = Path("/tmp/inktutor/strokes.jsonl")
 try:
@@ -38,11 +38,11 @@ def parse_dot(data: bytearray) -> dict | None:
         return None
     try:
         return {
-            "x":        int.from_bytes(data[0:4], "big"),
-            "y":        int.from_bytes(data[4:8], "big"),
+            "x": int.from_bytes(data[0:4], "big"),
+            "y": int.from_bytes(data[4:8], "big"),
             "pressure": int.from_bytes(data[8:10], "big"),
-            "ts":       time.time(),
-            "type":     "dot",
+            "ts": time.time(),
+            "type": "dot",
         }
     except Exception as e:
         print(f"Warning: could not parse dot packet: {e}")
@@ -78,7 +78,7 @@ async def run():
         async with BleakClient(pen.address) as client:
             print("Connected. Start writing...")
             await client.start_notify(PEN_DATA_CHAR, on_dot)
-            await asyncio.sleep(3600)   # stream for up to 1 hour
+            await asyncio.sleep(3600)  # stream for up to 1 hour
     except Exception as e:
         print(f"Bluetooth connection error: {e}")
 
