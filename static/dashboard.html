@@ -235,7 +235,6 @@ let recentDotTimestamps = [];
 // Draw mode stroke state
 let drawStrokes = [];
 let currentDrawStroke = null;
-let localDotTs = new Set();
 let drawDotCount = 0;
 
 // --- Normalization & Drawing ---
@@ -385,17 +384,13 @@ function connectWS() {
     if (msg.type === "dots") {
       const allNewDots = msg.data;
 
-      // Update stats for all dots, but filter locally-drawn ones from rendering
+      // Update stats for all dots, but skip draw-mode dots for rendering
       const penDots = [];
       for (const d of allNewDots) {
         pressureSum += d.pressure || 0;
         if (d.ts > lastDotTs) lastDotTs = d.ts;
         recentDotTimestamps.push(d.ts);
-        if (localDotTs.has(d.ts)) {
-          localDotTs.delete(d.ts);
-        } else {
-          penDots.push(d);
-        }
+        if (d.source !== "draw") penDots.push(d);
       }
 
       const prevLen = allDots.length;
@@ -447,12 +442,11 @@ function canvasPos(e) {
 
 function injectDot(pos) {
   const ts = Date.now() / 1000;
-  localDotTs.add(ts);
   drawDotCount++;
   fetch("/inject", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ x: pos.x, y: pos.y, pressure: 512, ts, type: "dot" }),
+    body: JSON.stringify({ x: pos.x, y: pos.y, pressure: 512, ts, type: "dot", source: "draw" }),
   }).catch(() => {});
 }
 
@@ -514,7 +508,6 @@ async function clearSession() {
   recentDotTimestamps = [];
   drawStrokes = [];
   currentDrawStroke = null;
-  localDotTs = new Set();
   drawDotCount = 0;
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
