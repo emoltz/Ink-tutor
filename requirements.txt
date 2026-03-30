@@ -5,6 +5,7 @@ langchain
 langchain-anthropic
 langchain-core
 langchain-openai
+langchain-openrouter
 langgraph
 langgraph-prebuilt
 pillow

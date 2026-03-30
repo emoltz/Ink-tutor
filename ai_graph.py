@@ -125,6 +125,8 @@ class GraphNode:
             HumanMessage(content=content),
         ]
 
+        print(f"[node:{self.name}] Calling LLM...", flush=True)
+        t0 = __import__("time").time()
         try:
             result = self._llm.invoke(messages, config=config)
         except Exception as e:
@@ -136,6 +138,9 @@ class GraphNode:
             raise RuntimeError(
                 f"Node '{self.name}' got unexpected response format: {e}"
             ) from e
+
+        elapsed = __import__("time").time() - t0
+        print(f"[node:{self.name}] Done ({elapsed:.1f}s): {text[:120]!r}", flush=True)
 
         node_outputs = dict(state.get("node_outputs") or {})
         node_outputs[self.name] = text

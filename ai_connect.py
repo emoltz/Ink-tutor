@@ -29,7 +29,7 @@ class OpenRouterVisionModel(StrEnum):
     CLAUDE_HAIKU_4_5 = "anthropic/claude-haiku-4-5"  # fastest, lowest cost
     # Google — Gemini family
     GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
-    GEMINI_3_1_FLASH_LITE_PREVIEW = ("google/gemini-3.1-flash-lite-preview",)
+    GEMINI_3_1_FLASH_LITE_PREVIEW = "google/gemini-3.1-flash-lite-preview"
     # Mistral — vision-capable small models
     MISTRAL_SMALL_3_2 = (
         "mistralai/mistral-small-3.2-24b-instruct"  # latest, vision + tool calling
@@ -67,9 +67,6 @@ class OpenRouterConfig:
     api_key: str | None = None
     model: str = "anthropic/claude-sonnet-4-6"
     max_tokens: int = 100
-    base_url: str = "https://openrouter.ai/api/v1"
-    referer: str = "https://github.com/inktutor"
-    app_title: str = "InkTutor"
 
     def __post_init__(self):
         if self.api_key is None:
@@ -102,17 +99,12 @@ def _build_llm(config: ProviderConfig):
         )
 
     if isinstance(config, OpenRouterConfig):
-        from langchain_openai import ChatOpenAI
+        from langchain_openrouter import ChatOpenRouter
 
-        return ChatOpenAI(
+        return ChatOpenRouter(
             model=config.model,
             max_tokens=config.max_tokens,
-            openai_api_key=config.api_key,
-            openai_api_base=config.base_url,
-            default_headers={
-                "HTTP-Referer": config.referer,
-                "X-Title": config.app_title,
-            },
+            openrouter_api_key=config.api_key,
         )
 
     raise TypeError(f"Unsupported config type: {type(config)}")

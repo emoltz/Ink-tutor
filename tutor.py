@@ -160,6 +160,8 @@ async def main():
     print(f"Watching {STROKE_FILE} for strokes...")
     print(f"Pause threshold: {PAUSE_THRESHOLD}s\n")
 
+    _last_idle_print = 0.0  # throttle idle countdown prints
+
     try:
         while True:
             new_dots = read_new_dots()
@@ -167,15 +169,27 @@ async def main():
             if new_dots:
                 strokes.extend(new_dots)
                 last_dot_time = time.time()
+                print(f"[dots] +{len(new_dots)} new  total={len(strokes)}", flush=True)
 
             elif strokes and last_dot_time:
                 idle = time.time() - last_dot_time
+                now = time.time()
+
+                # Print idle countdown once per second
+                if now - _last_idle_print >= 1.0:
+                    print(
+                        f"[idle] {idle:.1f}s / {PAUSE_THRESHOLD}s  "
+                        f"(total dots: {len(strokes)})",
+                        flush=True,
+                    )
+                    _last_idle_print = now
 
                 if idle >= PAUSE_THRESHOLD:
-                    print(f"Pause detected ({idle:.1f}s). Analysing work...")
+                    print(f"\n[analyze] Pause detected ({idle:.1f}s). Rendering image...", flush=True)
                     last_dot_time = 0.0  # reset immediately so a failure doesn't re-fire
                     try:
                         image_b64 = render_strokes(strokes)
+                        print(f"[analyze] Image rendered ({len(image_b64)} b64 chars). Calling analyze node...", flush=True)
                         prompt = f"The student is solving: {current_problem}\nWhat do you see in their work so far?"
                         feedback = graph.run(
                             image_b64=image_b64,
@@ -186,11 +200,14 @@ async def main():
                             },
                             callbacks=[langfuse_handler] if langfuse_handler else None,
                         )
+                        print(f"[analyze] Graph complete.", flush=True)
                         log_ai_response(feedback, len(strokes))
-                        print(f"AI: {feedback}")
+                        print(f"[AI] {feedback}", flush=True)
                         speak(feedback)
                     except Exception as e:
-                        print(f"Error during AI analysis: {e}")
+                        import traceback
+                        print(f"[error] AI analysis failed: {e}", flush=True)
+                        traceback.print_exc()
 
             await asyncio.sleep(0.1)
     finally:
