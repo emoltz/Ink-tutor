@@ -52,12 +52,15 @@ def parse_dot(data: bytearray) -> dict | None:
 async def run():
     print("Scanning for Neo smartpen...")
     try:
-        devices = await BleakScanner.discover(timeout=10.0)
+        devices = await BleakScanner.discover(timeout=15.0)
     except Exception as e:
         print(f"Bluetooth scan failed: {e}")
         return
 
-    pen = next((d for d in devices if d.name and "NEO" in d.name.upper()), None)
+    pen = next((d for d in devices if d.name and ("NEO" in d.name.upper() or "LAMY" in d.name.upper())), None)
+    if not pen:
+        for d in devices:
+            print(f"Found device: {d.name!r} ({d.address})")
 
     if not pen:
         print("No Neo pen found. Make sure it's on and nearby.")
