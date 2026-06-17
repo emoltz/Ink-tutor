@@ -1,6 +1,31 @@
 import SwiftUI
 import PencilKit
 
+#if os(macOS)
+import AppKit
+
+struct CanvasView: NSViewRepresentable {
+    let canvas: PKCanvasView
+    let useEraser: Bool
+
+    func makeNSView(context: Context) -> PKCanvasView {
+        canvas.wantsLayer = true
+        canvas.layer?.backgroundColor = NSColor.clear.cgColor
+        canvas.isScrollEnabled = false
+        canvas.tool = PKInkingTool(.pen, color: .black, width: 3)
+        return canvas
+    }
+
+    func updateNSView(_ nsView: PKCanvasView, context: Context) {
+        nsView.tool = useEraser
+            ? PKEraserTool(.bitmap)
+            : PKInkingTool(.pen, color: .black, width: 3)
+    }
+}
+
+#else
+import UIKit
+
 struct CanvasView: UIViewRepresentable {
     let canvas: PKCanvasView
     let useEraser: Bool
@@ -23,3 +48,4 @@ struct CanvasView: UIViewRepresentable {
             : PKInkingTool(.pen, color: .black, width: 3)
     }
 }
+#endif
