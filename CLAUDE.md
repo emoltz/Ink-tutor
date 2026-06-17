@@ -42,8 +42,18 @@ inktutor/
 ├── nodes.py            AI pipeline node definitions and prompts
 ├── ai_graph.py         LangGraph multi-node pipeline layer
 ├── dashboard.py        runs in Docker — real-time monitoring dashboard
-└── static/
-    └── dashboard.html  single-page dashboard frontend
+├── static/
+│   └── dashboard.html  single-page dashboard frontend
+└── ios/
+    └── ink-tutor-ios/  SwiftUI iPad app (Xcode project)
+        ├── InkTutorApp.swift       app entry point, SwiftData container
+        ├── Models/
+        │   └── Sheet.swift         @Model: title, createdAt, drawingData, pdfData
+        └── Views/
+            ├── HomeView.swift      grid of Sheet cards, create/delete
+            ├── CanvasEditor.swift  PDF background + PencilKit overlay, toolbar
+            ├── CanvasView.swift    UIViewRepresentable wrapping PKCanvasView
+            └── PDFBackgroundView.swift  renders PDF page as canvas background
 ```
 
 ## Running the Project
@@ -249,6 +259,28 @@ separate phone scan at session start, or a small webcam pointed at the paper.
 - **Audio playback** inside Docker on Mac may not work out of the box.
   Fallback: write TTS audio to a file in `/tmp/inktutor` and play it from
   the host.
+
+## iOS App (iPad)
+
+The `ios/` directory contains a SwiftUI iPad app — the v1 student-facing interface. It replaces the original "no screen" design with an iPad canvas where students work on imported worksheets using Apple Pencil.
+
+### What it does (current scaffold)
+- **HomeView** — grid of `Sheet` cards (SwiftData), create blank or PDF-backed sheets, delete via context menu
+- **CanvasEditor** — import a PDF worksheet (`fileImporter`), renders it as a background layer, draws Apple Pencil ink on top via PencilKit; pen/eraser toggle and undo in toolbar
+- **Sheet model** — `@Model` with `title`, `createdAt`, `drawingData` (PKDrawing bytes), and optional `pdfData` (imported PDF)
+- Ink saved to SwiftData on view disappear; PDF and drawing restored on appear
+
+### v1 target architecture (planned, not yet built)
+- `POST /worksheet` — upload PDF → backend tags skills with `tag_skills` node (vision), returns `{worksheet_id, skills}`
+- `POST /attempt` — on pen-idle pause, render canvas + PDF → PNG, POST to backend → `{events, intent}`
+- Backend runs `diagnose` (vision) → `decide` (text) nodes in `nodes.py`
+- On-device: Apple Foundation Models (iOS 27+) generates practice problems from `intent` and voices feedback; FM image input used for page-aware triage (decide if there's enough work to diagnose before sending to backend)
+- New problems rendered onto a fresh sheet in-app
+
+### Running the iOS app
+Open `ios/ink-tutor-ios/ink-tutor-ios.xcodeproj` in Xcode, target an iPad or iPad simulator running iOS 18+. No additional dependencies — pure SwiftUI + PencilKit + SwiftData.
+
+For the full backend loop, the iPad must reach the Docker backend over LAN (`http://<mac-ip>:8080`).
 
 ## Hardware
 
