@@ -17,6 +17,7 @@ COPY tutor.py .
 COPY ai_connect.py .
 COPY ai_graph.py .
 COPY dashboard.py .
+COPY api/ api/
 COPY static/ static/
 
 CMD ["python", "tutor.py"]
