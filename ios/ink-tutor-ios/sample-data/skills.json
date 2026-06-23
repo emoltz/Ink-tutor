@@ -1,0 +1,76 @@
+{
+    "nodes": [
+        {
+            "id": "integer_arithmetic",
+            "label": "Integer Arithmetic",
+            "description": "Adding, subtracting, multiplying, and dividing integers"
+        },
+        {
+            "id": "combining_like_terms",
+            "label": "Combining Like Terms",
+            "description": "Simplifying expressions by grouping similar variables and constants"
+        },
+        {
+            "id": "distributive_property",
+            "label": "Distributive Property",
+            "description": "Expanding expressions by multiplying a factor through parentheses"
+        },
+        {
+            "id": "addition_subtraction_properties",
+            "label": "Addition/Subtraction Properties of Equality",
+            "description": "Adding or subtracting the same value from both sides of an equation"
+        },
+        {
+            "id": "multiplication_division_properties",
+            "label": "Multiplication/Division Properties of Equality",
+            "description": "Multiplying or dividing both sides of an equation by the same non-zero value"
+        },
+        {
+            "id": "multi_step_equations",
+            "label": "Solving Multi-Step Equations",
+            "description": "Using algebraic properties to isolate a variable"
+        }
+    ],
+    "edges": [
+        {
+            "source": "integer_arithmetic",
+            "target": "combining_like_terms",
+            "label": "required for"
+        },
+        {
+            "source": "integer_arithmetic",
+            "target": "distributive_property",
+            "label": "required for"
+        },
+        {
+            "source": "integer_arithmetic",
+            "target": "addition_subtraction_properties",
+            "label": "required for"
+        },
+        {
+            "source": "integer_arithmetic",
+            "target": "multiplication_division_properties",
+            "label": "required for"
+        },
+        {
+            "source": "combining_like_terms",
+            "target": "multi_step_equations",
+            "label": "required for"
+        },
+        {
+            "source": "distributive_property",
+            "target": "multi_step_equations",
+            "label": "required for"
+        },
+        {
+            "source": "addition_subtraction_properties",
+            "target": "multi_step_equations",
+            "label": "required for"
+        },
+        {
+            "source": "multiplication_division_properties",
+            "target": "multi_step_equations",
+            "label": "required for"
+        }
+    ]
+}

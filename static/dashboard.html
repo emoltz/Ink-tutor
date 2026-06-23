@@ -181,11 +181,41 @@
     border-left-color: #e0e0de;
   }
   .ai-entry.silent .text { color: #b4b4b0; font-style: italic; }
+
+  .tabs { display: flex; gap: 4px; }
+  .tab-btn {
+    background: none; border: none; padding: 4px 10px;
+    border-radius: 4px; font-size: 13px; font-weight: 500;
+    color: #9b9a97; cursor: pointer;
+  }
+  .tab-btn.active { background: #f1f1ef; color: #37352f; }
+  .tab-btn:hover { background: #f1f1ef; }
+
+  #skillsPanel {
+    display: none; flex: 1; overflow: hidden;
+    flex-direction: row;
+  }
+  #skillsPanel.visible { display: flex; }
+
+  #skillJson {
+    width: 280px; min-width: 280px; padding: 12px;
+    border: none; border-right: 1px solid #e9e9e7;
+    font-family: monospace; font-size: 12px;
+    resize: none; outline: none; background: #fbfbfa;
+  }
+
+  #skillSvg {
+    flex: 1; background: #fff;
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>InkTutor Dashboard</h1>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('live')">Live</button>
+    <button class="tab-btn" onclick="showTab('skills')">Skills</button>
+  </div>
   <div class="status">
     <span class="status-dot disconnected" id="statusDot"></span>
     <span id="statusText">Disconnected</span>
@@ -193,7 +223,11 @@
     <button onclick="clearSession()">Clear</button>
   </div>
 </header>
-<div class="main">
+<div id="skillsPanel">
+  <textarea id="skillJson" placeholder='Paste skill graph JSON here…' oninput="renderSkills()"></textarea>
+  <svg id="skillSvg"></svg>
+</div>
+<div class="main" id="livePanel">
   <div class="canvas-panel">
     <canvas id="canvas" width="1200" height="900"></canvas>
   </div>
@@ -214,6 +248,125 @@
     </div>
   </div>
 </div>
+
+<script>
+// --- Tab switching ---
+function showTab(tab) {
+  document.getElementById('livePanel').style.display = tab === 'live' ? 'flex' : 'none';
+  document.getElementById('skillsPanel').classList.toggle('visible', tab === 'skills');
+  document.querySelectorAll('.tab-btn').forEach((b, i) =>
+    b.classList.toggle('active', (i === 0) === (tab === 'live')));
+}
+
+// --- Skill graph renderer ---
+function renderSkills() {
+  const svg = document.getElementById('skillSvg');
+  svg.innerHTML = '';
+  let data;
+  try { data = JSON.parse(document.getElementById('skillJson').value); }
+  catch { return; }
+
+  const nodes = data.nodes || [], edges = data.edges || [];
+  if (!nodes.length) return;
+
+  const W = svg.clientWidth || 800, H = svg.clientHeight || 500;
+  const R = 36, PAD = 20;
+
+  // Topological layer assignment
+  const idxOf = Object.fromEntries(nodes.map((n, i) => [n.id, i]));
+  const layer = new Array(nodes.length).fill(0);
+  // ponytail: simple forward pass — good enough for DAGs with <20 nodes
+  for (let pass = 0; pass < nodes.length; pass++)
+    for (const e of edges) {
+      const s = idxOf[e.source], t = idxOf[e.target];
+      if (s !== undefined && t !== undefined && layer[t] <= layer[s])
+        layer[t] = layer[s] + 1;
+    }
+
+  const maxLayer = Math.max(...layer);
+  const layerCounts = new Array(maxLayer + 1).fill(0);
+  const layerPos = new Array(nodes.length).fill(0);
+  for (let i = 0; i < nodes.length; i++) layerPos[i] = layerCounts[layer[i]]++;
+
+  const colW = (W - PAD * 2) / (maxLayer + 1);
+  const pos = nodes.map((_, i) => {
+    const col = layer[i], row = layerPos[i];
+    const rowTotal = layerCounts[col];
+    return {
+      x: PAD + col * colW + colW / 2,
+      y: H / 2 + (row - (rowTotal - 1) / 2) * (R * 2 + 24),
+    };
+  });
+
+  // Draw edges
+  for (const e of edges) {
+    const s = idxOf[e.source], t = idxOf[e.target];
+    if (s === undefined || t === undefined) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    Object.assign(line, {});
+    line.setAttribute('x1', pos[s].x); line.setAttribute('y1', pos[s].y);
+    line.setAttribute('x2', pos[t].x); line.setAttribute('y2', pos[t].y);
+    line.setAttribute('stroke', '#e0e0de'); line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#arrow)');
+    svg.appendChild(line);
+
+    if (e.label) {
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('x', (pos[s].x + pos[t].x) / 2);
+      lbl.setAttribute('y', (pos[s].y + pos[t].y) / 2 - 5);
+      lbl.setAttribute('text-anchor', 'middle');
+      lbl.setAttribute('font-size', '10');
+      lbl.setAttribute('font-family', 'Inter, sans-serif');
+      lbl.setAttribute('fill', '#9b9a97');
+      lbl.textContent = e.label;
+      svg.appendChild(lbl);
+    }
+  }
+
+  // Arrow marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML = `<marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#9b9a97"/></marker>`;
+  svg.insertBefore(defs, svg.firstChild);
+
+  // Draw nodes
+  for (let i = 0; i < nodes.length; i++) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${pos[i].x},${pos[i].y})`);
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', R); circle.setAttribute('fill', '#f7f6f3');
+    circle.setAttribute('stroke', '#37352f'); circle.setAttribute('stroke-width', '1.5');
+    g.appendChild(circle);
+
+    const wrap = (text, maxW) => {
+      const words = text.split(' '), lines = [];
+      let cur = '';
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (test.length > maxW && cur) { lines.push(cur); cur = w; }
+        else cur = test;
+      }
+      lines.push(cur);
+      return lines;
+    };
+
+    const lines = wrap(nodes[i].label, 12);
+    lines.forEach((line, li) => {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '11');
+      t.setAttribute('font-family', 'Inter, sans-serif');
+      t.setAttribute('fill', '#37352f');
+      t.setAttribute('dy', (li - (lines.length - 1) / 2) * 14 + 'px');
+      t.textContent = line;
+      g.appendChild(t);
+    });
+
+    svg.appendChild(g);
+  }
+}
+</script>
 
 <script>
 const canvas = document.getElementById("canvas");

@@ -18,8 +18,8 @@ router = APIRouter(tags=["worksheet"])
 
 MAX_PDF_BYTES = 20 * 1024 * 1024
 SKILL_PROMPT = """Look at this math worksheet. Return only JSON:
-{"nodes":[{"id":"snake_case","label":"Skill","description":"short"}],"edges":[{"source":"prereq_id","target":"skill_id"}]}
-Edges point prerequisite -> dependent. Include only skills needed for this worksheet."""
+{"nodes":[{"id":"snake_case","label":"Skill","description":"short"}],"edges":[{"source":"prereq_id","target":"skill_id","label":"relationship"}]}
+Edges point prerequisite -> dependent. Edge label is a short phrase describing the dependency (e.g. "required for"). Include only skills needed for this worksheet."""
 
 
 class SkillNode(BaseModel):
@@ -31,6 +31,7 @@ class SkillNode(BaseModel):
 class SkillEdge(BaseModel):
     source: str
     target: str
+    label: str | None = None
 
 
 class SkillGraph(BaseModel):
@@ -70,7 +71,7 @@ def parse_skill_graph(text: str) -> SkillGraph:
         source = _slug(edge.get("source", ""))
         target = _slug(edge.get("target", ""))
         if source in ids and target in ids and source != target:
-            edges.append(SkillEdge(source=source, target=target))
+            edges.append(SkillEdge(source=source, target=target, label=edge.get("label")))
     return SkillGraph(nodes=nodes, edges=edges)
 
 
@@ -100,7 +101,7 @@ def describe_skills(image_b64: str) -> SkillGraph:
         system_prompt=SKILL_PROMPT,
         config=OpenRouterConfig(
             model=OpenRouterVisionModel.GEMINI_3_1_FLASH_LITE_PREVIEW,
-            max_tokens=1000,
+            max_tokens=10000,
         ),
     )
     result = node({"image_b64": image_b64, "prompt": SKILL_PROMPT})
@@ -118,7 +119,9 @@ async def worksheet(request: Request) -> SkillGraph:
         raise HTTPException(415, "Send raw PDF bytes")
 
     try:
-        return describe_skills(render_pdf(pdf))
+        graph= describe_skills(render_pdf(pdf))
+        print("Graph:" + str(graph))
+        return graph
     except json.JSONDecodeError as exc:
         raise HTTPException(502, "Model returned invalid JSON") from exc
     except ValueError as exc:

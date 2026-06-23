@@ -18,6 +18,7 @@ services:
   api:
     build: .
     command: ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    env_file: .env
     ports:
       - "8000:8000"
     volumes:
