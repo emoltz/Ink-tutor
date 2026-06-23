@@ -6,22 +6,24 @@ AI watches the work in real time, speaks feedback through audio. No screen.
 ## Architecture
 
 ```
-Mac Host (pen_host.py)            Docker Container (tutor.py)
+Mac Host (pen_host.py)            Docker — 3 services
 ──────────────────────────────    ──────────────────────────────
-bleak BLE → Neo LAMY pen          reads /tmp/inktutor/strokes.jsonl
-writes stroke dots as JSONL  ───► buffers strokes
+bleak BLE → pen (Ncode or ESP32)  tutor.py (CMD default)
+writes stroke dots as JSONL  ───► reads /tmp/inktutor/strokes.jsonl
                                   detects pause (default 3s)
                                   renders strokes → PNG
                                   calls Claude vision API
                                   speaks response via TTS
                                   logs AI responses → ai_responses.jsonl
 
-                                  Docker Container (dashboard.py)
-                                  ──────────────────────────────
-                                  FastAPI + WebSocket on port 8080
-                                  tails strokes.jsonl (live dots)
-                                  tails ai_responses.jsonl (AI log)
+                                  dashboard.py  (port 8080)
+                                  FastAPI + WebSocket
+                                  tails strokes.jsonl + ai_responses.jsonl
                                   streams to browser in real time
+
+                                  api/main.py  (port 8000)
+                                  FastAPI REST API — worksheet/attempt routes
+                                  /health endpoint live; worksheet/attempt TBD
 ```
 
 Bluetooth cannot pass through Docker Desktop on Mac. The BLE script runs
@@ -32,28 +34,40 @@ on the host and communicates with the container via a shared file at
 
 ```
 inktutor/
-├── CLAUDE.md           this file
-├── Dockerfile          Python 3.12-slim, audio/TTS deps
-├── docker-compose.yml  mounts ./:/app and /tmp/inktutor
-├── requirements.txt    anthropic, Pillow, pyttsx3, elevenlabs, bleak, fastapi
-├── .env.example        copy to .env, add API keys
-├── pen_host.py         runs on Mac host — BLE pen listener
-├── tutor.py            runs in Docker — AI tutor loop
-├── nodes.py            AI pipeline node definitions and prompts
-├── ai_graph.py         LangGraph multi-node pipeline layer
-├── dashboard.py        runs in Docker — real-time monitoring dashboard
+├── CLAUDE.md                   this file
+├── Dockerfile                  Python 3.13-slim, espeak-ng, portaudio
+├── docker-compose.yml          3 services: tutor (CMD), dashboard (8080), api (8000)
+├── requirements.txt            anthropic, Pillow, pyttsx3, elevenlabs, bleak, fastapi
+├── .env.example                copy to .env, add API keys
+├── pen_host.py                 runs on Mac host — BLE pen listener (Ncode pen)
+├── tutor.py                    runs in Docker — AI tutor loop
+├── nodes.py                    AI pipeline node definitions and prompts
+├── ai_graph.py                 LangGraph multi-node pipeline layer
+├── ai_connect.py               provider config classes (Anthropic/OpenAI/OpenRouter)
+├── dashboard.py                runs in Docker — real-time monitoring dashboard
+├── discover_pen.py             utility: scan BLE and print discovered devices/UUIDs
+├── benchmark_describe.py       benchmark script for vision model comparison
+├── api/
+│   ├── main.py                 FastAPI app — mounts routers
+│   └── routers/
+│       └── health.py           GET /health → {"status": "ok"}
 ├── static/
-│   └── dashboard.html  single-page dashboard frontend
+│   └── dashboard.html          single-page dashboard frontend
+├── ink-tutor-firmware/         custom ESP32 pen firmware (PlatformIO)
+│   ├── platformio.ini          board: esp32doit-devkit-v1, 20 Hz BLE notify
+│   └── src/main.cpp            BMI270 IMU + FSR → JSON over BLE
 └── ios/
-    └── ink-tutor-ios/  SwiftUI iPad app (Xcode project)
-        ├── InkTutorApp.swift       app entry point, SwiftData container
-        ├── Models/
-        │   └── Sheet.swift         @Model: title, createdAt, drawingData, pdfData
-        └── Views/
-            ├── HomeView.swift      grid of Sheet cards, create/delete
-            ├── CanvasEditor.swift  PDF background + PencilKit overlay, toolbar
-            ├── CanvasView.swift    UIViewRepresentable wrapping PKCanvasView
-            └── PDFBackgroundView.swift  renders PDF page as canvas background
+    └── ink-tutor-ios/          SwiftUI iPad app (Xcode project)
+        ├── InkTutorApp.swift   app entry point, SwiftData container
+        └── ink-tutor-ios/
+            ├── InkTutorApp.swift
+            ├── Models/
+            └── Views/
+                ├── HomeView.swift          grid of Sheet cards, create/delete
+                ├── CanvasEditor.swift      PDF background + PencilKit overlay, toolbar
+                ├── CanvasView.swift        UIViewRepresentable wrapping PKCanvasView
+                ├── PDFBackgroundView.swift renders PDF page as canvas background
+                └── Sheet.swift             @Model: title, createdAt, drawingData, pdfData
 ```
 
 ## Running the Project
@@ -62,19 +76,23 @@ inktutor/
 # 1. Copy and fill in env
 cp .env.example .env
 
-# 2. Start the AI tutor container
+# 2. Start all containers (tutor + dashboard + API)
 docker-compose up
 
 # 3. In a second terminal, start the pen listener on the host
 pip install bleak
 python pen_host.py
 
-# 4. Turn on the LAMY pen and write on Ncode paper
+# 4. Turn on the pen and write
 ```
 
-The dashboard starts automatically with `docker-compose up` and is available
-at **http://localhost:8080**. It shows live pen strokes, stats, and AI
-response history. Click **Clear** to reset for a new session.
+| Service   | URL                        |
+|-----------|----------------------------|
+| Dashboard | http://localhost:8080      |
+| API       | http://localhost:8000      |
+| API docs  | http://localhost:8000/docs |
+
+Click **Clear** on the dashboard to reset for a new session.
 
 To test without the pen, append dots manually:
 ```bash
@@ -259,6 +277,36 @@ separate phone scan at session start, or a small webcam pointed at the paper.
 - **Audio playback** inside Docker on Mac may not work out of the box.
   Fallback: write TTS audio to a file in `/tmp/inktutor` and play it from
   the host.
+
+## REST API (`api/`)
+
+FastAPI service on port 8000. Currently scaffolded:
+
+- `GET /health` — returns `{"status": "ok"}`
+- `POST /worksheet` — planned: upload PDF, tag skills (vision), return `{worksheet_id, skills}`
+- `POST /attempt` — planned: render canvas+PDF → PNG, run `diagnose → decide` nodes, return `{events, intent}`
+
+Add routes in `api/routers/`, include them in `api/main.py`. Auto-docs at `/docs`.
+
+## Custom Pen Firmware (`ink-tutor-firmware/`)
+
+PlatformIO project for an ESP32 dev board. Streams IMU + pressure data over BLE at 20 Hz.
+
+**Hardware:** ESP32 + BMI270 IMU (I2C on pins 21/22) + FSR on pin 34.
+
+**Flash:**
+```bash
+cd ink-tutor-firmware
+pio run --target upload
+pio device monitor   # view JSON output at 115200 baud
+```
+
+**BLE output** (JSON, notified on characteristic `abcd1234-...`):
+```json
+{"fsr":1234,"ax":0.01,"ay":0.02,"az":9.81,"gx":0.1,"gy":0.0,"gz":0.0}
+```
+
+The host-side BLE listener (`pen_host.py`) will need to be adapted to read from this characteristic UUID instead of the Ncode pen's UUIDs.
 
 ## iOS App (iPad)
 
