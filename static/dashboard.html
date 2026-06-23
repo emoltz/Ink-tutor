@@ -334,11 +334,6 @@ function renderSkills() {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', `translate(${pos[i].x},${pos[i].y})`);
 
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('r', R); circle.setAttribute('fill', '#f7f6f3');
-    circle.setAttribute('stroke', '#37352f'); circle.setAttribute('stroke-width', '1.5');
-    g.appendChild(circle);
-
     const wrap = (text, maxW) => {
       const words = text.split(' '), lines = [];
       let cur = '';
@@ -352,6 +347,19 @@ function renderSkills() {
     };
 
     const lines = wrap(nodes[i].label, 12);
+    const textH = lines.length * 14;
+    const maxLineLen = Math.max(...lines.map(l => l.length));
+    const rw = Math.max(R, maxLineLen * 4 + 12);
+    const rh = Math.max(R, textH / 2 + 12);
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', -rw); rect.setAttribute('y', -rh);
+    rect.setAttribute('width', rw * 2); rect.setAttribute('height', rh * 2);
+    rect.setAttribute('rx', rh); rect.setAttribute('ry', rh);
+    rect.setAttribute('fill', '#f7f6f3');
+    rect.setAttribute('stroke', '#37352f'); rect.setAttribute('stroke-width', '1.5');
+    g.appendChild(rect);
+
     lines.forEach((line, li) => {
       const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       t.setAttribute('text-anchor', 'middle');
