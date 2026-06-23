@@ -9,6 +9,7 @@ langchain-openrouter
 langgraph
 langgraph-prebuilt
 pillow
+pymupdf
 python-dotenv
 fastapi
 uvicorn
