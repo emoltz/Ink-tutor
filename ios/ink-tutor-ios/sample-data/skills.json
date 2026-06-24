@@ -3,74 +3,104 @@
         {
             "id": "integer_arithmetic",
             "label": "Integer Arithmetic",
-            "description": "Adding, subtracting, multiplying, and dividing integers"
+            "description": "Adding, subtracting, multiplying integers including negatives"
+        },
+        {
+            "id": "equality_concept",
+            "label": "Equality & Balance Concept",
+            "description": "Understanding that both sides of an equation must remain balanced"
         },
         {
             "id": "combining_like_terms",
             "label": "Combining Like Terms",
-            "description": "Simplifying expressions by grouping similar variables and constants"
+            "description": "Grouping and simplifying variable and constant terms on the same side"
+        },
+        {
+            "id": "one_step_solving",
+            "label": "One-Step Equation Solving",
+            "description": "Isolating a variable using a single inverse operation"
+        },
+        {
+            "id": "moving_constants",
+            "label": "Moving Constants Across the Equals Sign",
+            "description": "Adding or subtracting constants to both sides to isolate terms"
+        },
+        {
+            "id": "variables_both_sides",
+            "label": "Variables on Both Sides",
+            "description": "Adding or subtracting variable terms across the equals sign to collect them on one side"
         },
         {
             "id": "distributive_property",
             "label": "Distributive Property",
-            "description": "Expanding expressions by multiplying a factor through parentheses"
+            "description": "Expanding a coefficient or negative sign across terms inside parentheses"
         },
         {
-            "id": "addition_subtraction_properties",
-            "label": "Addition/Subtraction Properties of Equality",
-            "description": "Adding or subtracting the same value from both sides of an equation"
-        },
-        {
-            "id": "multiplication_division_properties",
-            "label": "Multiplication/Division Properties of Equality",
-            "description": "Multiplying or dividing both sides of an equation by the same non-zero value"
+            "id": "distributing_negative",
+            "label": "Distributing a Negative Sign",
+            "description": "Correctly applying sign changes when a negative is distributed into parentheses"
         },
         {
             "id": "multi_step_equations",
-            "label": "Solving Multi-Step Equations",
-            "description": "Using algebraic properties to isolate a variable"
+            "label": "Multi-Step Equation Solving",
+            "description": "Combining distribution, combining like terms, and variables-on-both-sides in sequence"
         }
     ],
     "edges": [
         {
             "source": "integer_arithmetic",
             "target": "combining_like_terms",
-            "label": "required for"
+            "label": null
+        },
+        {
+            "source": "integer_arithmetic",
+            "target": "one_step_solving",
+            "label": null
+        },
+        {
+            "source": "equality_concept",
+            "target": "one_step_solving",
+            "label": null
+        },
+        {
+            "source": "one_step_solving",
+            "target": "moving_constants",
+            "label": null
+        },
+        {
+            "source": "combining_like_terms",
+            "target": "moving_constants",
+            "label": null
+        },
+        {
+            "source": "moving_constants",
+            "target": "variables_both_sides",
+            "label": null
         },
         {
             "source": "integer_arithmetic",
             "target": "distributive_property",
-            "label": "required for"
+            "label": null
         },
         {
-            "source": "integer_arithmetic",
-            "target": "addition_subtraction_properties",
-            "label": "required for"
+            "source": "distributive_property",
+            "target": "distributing_negative",
+            "label": null
         },
         {
-            "source": "integer_arithmetic",
-            "target": "multiplication_division_properties",
-            "label": "required for"
+            "source": "distributing_negative",
+            "target": "multi_step_equations",
+            "label": null
         },
         {
             "source": "combining_like_terms",
             "target": "multi_step_equations",
-            "label": "required for"
+            "label": null
         },
         {
-            "source": "distributive_property",
+            "source": "variables_both_sides",
             "target": "multi_step_equations",
-            "label": "required for"
-        },
-        {
-            "source": "addition_subtraction_properties",
-            "target": "multi_step_equations",
-            "label": "required for"
-        },
-        {
-            "source": "multiplication_division_properties",
-            "target": "multi_step_equations",
-            "label": "required for"
+            "label": null
         }
     ]
 }
