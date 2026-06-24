@@ -17,9 +17,13 @@ from ai_graph import GraphNode
 router = APIRouter(tags=["worksheet"])
 
 MAX_PDF_BYTES = 20 * 1024 * 1024
-SKILL_PROMPT = """Look at this math worksheet. Return only JSON:
-{"nodes":[{"id":"snake_case","label":"Skill","description":"short"}],"edges":[{"source":"prereq_id","target":"skill_id","label":"relationship"}]}
-Edges point prerequisite -> dependent. Edge label is a short phrase describing the dependency (e.g. "required for"). Include only skills needed for this worksheet."""
+SKILL_PROMPT = """Look at this math worksheet. Build a prerequisite skill graph. Return only JSON:
+{"nodes":[{"id":"snake_case","label":"Skill","description":"short"}],"edges":[{"source":"prereq_id","target":"dependent_id"}]}
+
+Rules:
+- Only include skills a student must actually USE to solve the problems on THIS page. Read the problems and name the specific techniques they exercise (e.g. if many problems have variables on both sides, that is its own skill). Do not list generic curriculum topics that the page doesn't require.
+- Build a real prerequisite chain, not a flat fan-in. Foundational skills (e.g. integer arithmetic) feed simplification skills (e.g. distributing, combining like terms), which feed the equation-solving moves, which feed the overall task. Most skills should depend on something other than the root.
+- Edges point prerequisite -> dependent."""
 
 
 class SkillNode(BaseModel):

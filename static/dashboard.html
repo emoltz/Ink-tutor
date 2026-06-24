@@ -288,6 +288,24 @@ function renderSkills() {
   const layerPos = new Array(nodes.length).fill(0);
   for (let i = 0; i < nodes.length; i++) layerPos[i] = layerCounts[layer[i]]++;
 
+  const wrap = (text, maxW) => {
+    const words = text.split(' '), lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (test.length > maxW && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    lines.push(cur);
+    return lines;
+  };
+
+  const wrapped = nodes.map(n => wrap(n.label, 12));
+  const sizes = wrapped.map(lines => ({
+    rw: Math.max(R, Math.max(...lines.map(l => l.length)) * 4 + 12),
+    rh: Math.max(R, (lines.length * 14) / 2 + 12),
+  }));
+
   const colW = (W - PAD * 2) / (maxLayer + 1);
   const pos = nodes.map((_, i) => {
     const col = layer[i], row = layerPos[i];
@@ -298,34 +316,30 @@ function renderSkills() {
     };
   });
 
-  // Draw edges
+  // Trim a point on the line toward `to`'s center back to its elliptical edge
+  const edgePoint = (from, to, size) => {
+    const dx = from.x - to.x, dy = from.y - to.y;
+    const scale = 1 / Math.hypot(dx / size.rw, dy / size.rh);
+    return { x: to.x + dx * scale, y: to.y + dy * scale };
+  };
+
+  // Draw edges (arrowheads stop at node boundary so they're visible)
   for (const e of edges) {
     const s = idxOf[e.source], t = idxOf[e.target];
     if (s === undefined || t === undefined) continue;
+    const a = edgePoint(pos[t], pos[s], sizes[s]);
+    const b = edgePoint(pos[s], pos[t], sizes[t]);
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    Object.assign(line, {});
-    line.setAttribute('x1', pos[s].x); line.setAttribute('y1', pos[s].y);
-    line.setAttribute('x2', pos[t].x); line.setAttribute('y2', pos[t].y);
-    line.setAttribute('stroke', '#e0e0de'); line.setAttribute('stroke-width', '2');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', '#c8c8c5'); line.setAttribute('stroke-width', '2');
     line.setAttribute('marker-end', 'url(#arrow)');
     svg.appendChild(line);
-
-    if (e.label) {
-      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      lbl.setAttribute('x', (pos[s].x + pos[t].x) / 2);
-      lbl.setAttribute('y', (pos[s].y + pos[t].y) / 2 - 5);
-      lbl.setAttribute('text-anchor', 'middle');
-      lbl.setAttribute('font-size', '10');
-      lbl.setAttribute('font-family', 'Inter, sans-serif');
-      lbl.setAttribute('fill', '#9b9a97');
-      lbl.textContent = e.label;
-      svg.appendChild(lbl);
-    }
   }
 
   // Arrow marker
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-  defs.innerHTML = `<marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+  defs.innerHTML = `<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
     <path d="M0,0 L0,6 L8,3 z" fill="#9b9a97"/></marker>`;
   svg.insertBefore(defs, svg.firstChild);
 
@@ -334,23 +348,8 @@ function renderSkills() {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', `translate(${pos[i].x},${pos[i].y})`);
 
-    const wrap = (text, maxW) => {
-      const words = text.split(' '), lines = [];
-      let cur = '';
-      for (const w of words) {
-        const test = cur ? cur + ' ' + w : w;
-        if (test.length > maxW && cur) { lines.push(cur); cur = w; }
-        else cur = test;
-      }
-      lines.push(cur);
-      return lines;
-    };
-
-    const lines = wrap(nodes[i].label, 12);
-    const textH = lines.length * 14;
-    const maxLineLen = Math.max(...lines.map(l => l.length));
-    const rw = Math.max(R, maxLineLen * 4 + 12);
-    const rh = Math.max(R, textH / 2 + 12);
+    const lines = wrapped[i];
+    const { rw, rh } = sizes[i];
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', -rw); rect.setAttribute('y', -rh);
