@@ -40,6 +40,7 @@ Each node can use a different model/provider — just pass a different config.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, TypedDict
 
@@ -48,6 +49,23 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 from ai_connect import ProviderConfig, _build_llm
+
+
+def _default_callbacks() -> list | None:
+    """Auto-attach a Langfuse handler when LANGFUSE_* is configured; None otherwise.
+
+    This is the single chokepoint that traces every AI call: TutorGraph.run()
+    calls it whenever the caller didn't pass callbacks of their own.
+    """
+    if not os.getenv("LANGFUSE_PUBLIC_KEY"):
+        return None
+    try:
+        from langfuse.langchain import CallbackHandler  # SDK v3
+
+        return [CallbackHandler()]  # reads creds from env
+    except Exception:
+        return None
+
 
 # ── Graph state ─────────────────────────────────────────────────────────────
 
@@ -252,6 +270,8 @@ class TutorGraph:
             "prompt": prompt,
             "metadata": metadata or {},
         }
+        if callbacks is None:  # caller didn't opt out — auto-trace to Langfuse
+            callbacks = _default_callbacks()
         invoke_config: dict[str, Any] = {}
         if callbacks:
             invoke_config["callbacks"] = callbacks

@@ -345,3 +345,29 @@ class TestTutorState:
             "node_outputs": {"n": "out"},
         }
         assert state["response"] == "resp"
+
+
+# ── Langfuse auto-trace gating ────────────────────────────────────────────────
+
+
+class TestDefaultCallbacks:
+    """run() auto-attaches Langfuse only when LANGFUSE_PUBLIC_KEY is set."""
+
+    def test_returns_none_when_unconfigured(self, monkeypatch):
+        monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+        from ai_graph import _default_callbacks
+
+        assert _default_callbacks() is None
+
+    def test_returns_handler_when_configured(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+        fake_handler = object()
+        fake_langchain = MagicMock()
+        fake_langchain.CallbackHandler.return_value = fake_handler
+        # Inject fake langfuse so the test is independent of the SDK being installed.
+        monkeypatch.setitem(sys.modules, "langfuse", MagicMock())
+        monkeypatch.setitem(sys.modules, "langfuse.langchain", fake_langchain)
+
+        from ai_graph import _default_callbacks
+
+        assert _default_callbacks() == [fake_handler]

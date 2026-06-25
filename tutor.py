@@ -16,12 +16,8 @@ from PIL import Image, ImageDraw
 
 from nodes import build_describe_graph
 
-try:
-    from langfuse.langchain import CallbackHandler as LangfuseCallback
-
-    _LANGFUSE_AVAILABLE = True
-except ImportError:
-    _LANGFUSE_AVAILABLE = False
+# Langfuse tracing is automatic — graph.run() auto-attaches a handler when
+# LANGFUSE_* env vars are set. See ai_graph._default_callbacks.
 
 # ── Config ──────────────────────────────────────────────────────────────────
 STROKE_FILE = Path("/tmp/inktutor/strokes.jsonl")
@@ -164,14 +160,6 @@ async def main():
     # graph = build_graph()
     graph = build_describe_graph()
 
-    langfuse_handler = None
-    if _LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
-        try:
-            langfuse_handler = LangfuseCallback()
-            print("Langfuse tracing enabled.")
-        except Exception as e:
-            print(f"Warning: Langfuse init failed, tracing disabled: {e}")
-
     # Hardcoded for now — later read from worksheet QR code
     current_problem = "Draw a rectangle and label its edges"
 
@@ -217,7 +205,6 @@ async def main():
                                 "problem": current_problem,
                                 "dot_count": len(strokes),
                             },
-                            callbacks=[langfuse_handler] if langfuse_handler else None,
                         )
                         print(f"[analyze] Graph complete.", flush=True)
                         log_ai_response(feedback, len(strokes))
@@ -230,8 +217,12 @@ async def main():
 
             await asyncio.sleep(0.1)
     finally:
-        if langfuse_handler:
-            langfuse_handler.flush()
+        try:  # flush any buffered Langfuse traces on shutdown
+            from langfuse import get_client
+
+            get_client().flush()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

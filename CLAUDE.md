@@ -228,7 +228,23 @@ graph = (TutorGraph()
 - Routing is done via plain Python functions — no LLM call needed for simple
   cases like checking if the response is "OK"
 - `node_outputs` dict in state gives access to every node's output by name
-- Pass `callbacks` to `graph.run()` for Langfuse integration
+- `graph.run()` auto-traces to Langfuse — see Observability below
+
+## Observability (Langfuse)
+
+**All AI calls are traced to Langfuse automatically.** Every LLM call flows
+through `TutorGraph.run()` (`ai_graph.py`), which auto-attaches a Langfuse
+handler whenever `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` /
+`LANGFUSE_BASE_URL` are set (see `.env`). New graphs and features are traced the
+moment they call `.run()` — **no Langfuse code required**.
+
+**Convention (keep this true):** route every AI call through a `GraphNode` in a
+`TutorGraph`. Never call `_build_llm(...).invoke()` directly — that path bypasses
+tracing.
+
+To opt one call out, pass `callbacks=[]`. To customise (e.g. nest under a parent
+trace), pass your own `callbacks=[...]` — `run()` only auto-attaches when none
+are given. See `benchmark_describe.py` for a custom-handler example.
 
 ## AI Tutor Behaviour
 
