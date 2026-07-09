@@ -17,14 +17,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
-# ── OpenRouter vision models ──────────────────────────────────────
+# ── OpenRouter models ──────────────────────────────────────
 # All models listed here support base64-encoded image input.
 # Values are OpenRouter model IDs; pass them as OpenRouterConfig(model=...).
-class OpenRouterVisionModel(StrEnum):
-    # Anthropic — Claude 4 family (all support vision)
-    CLAUDE_OPUS_4_6 = "anthropic/claude-opus-4-6"  # most capable, highest cost
-    CLAUDE_SONNET_4_6 = (
-        "anthropic/claude-sonnet-4-6"  # default; best speed/cost balance
+class LLMModels(StrEnum):
+    CLAUDE_OPUS = "anthropic/claude-opus-4-6"  # most capable, highest cost
+    CLAUDE_SONNET = (
+        "anthropic/claude-sonnet-5"  # default; best speed/cost balance
     )
     CLAUDE_HAIKU_4_5 = "anthropic/claude-haiku-4-5"  # fastest, lowest cost
     # Google — Gemini family

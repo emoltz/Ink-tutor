@@ -16,7 +16,7 @@ import uuid
 
 from PIL import Image, ImageDraw, ImageFont
 
-from ai_connect import AnthropicConfig, OpenAIConfig, OpenRouterConfig, OpenRouterVisionModel
+from ai_connect import AnthropicConfig, OpenAIConfig, OpenRouterConfig, LLMModels
 from ai_graph import GraphNode, TutorGraph
 from nodes import RAW_DESCRIBE_PROMPT
 
@@ -37,9 +37,9 @@ BENCHMARK_MODELS: list[tuple[str, object]] = [
     ("openai/gpt-5-mini",                OpenAIConfig(model="gpt-5-mini")),
     ("openai/gpt-5.4-mini",              OpenAIConfig(model="gpt-5.4-mini")),
     ("openai/gpt-5.4-nano",              OpenAIConfig(model="gpt-5.4-nano")),
-    ("openrouter/mistral-3b",            OpenRouterConfig(model=OpenRouterVisionModel.MISTRAL_3B)),
-    ("openrouter/gemini-3-flash",        OpenRouterConfig(model=OpenRouterVisionModel.GEMINI_3_FLASH_PREVIEW)),
-    ("openrouter/gemini-3.1-flash-lite", OpenRouterConfig(model=OpenRouterVisionModel.GEMINI_3_1_FLASH_LITE_PREVIEW)),
+    ("openrouter/mistral-3b",            OpenRouterConfig(model=LLMModels.MISTRAL_3B)),
+    ("openrouter/gemini-3-flash",        OpenRouterConfig(model=LLMModels.GEMINI_3_FLASH_PREVIEW)),
+    ("openrouter/gemini-3.1-flash-lite", OpenRouterConfig(model=LLMModels.GEMINI_3_1_FLASH_LITE_PREVIEW)),
 ]
 
 

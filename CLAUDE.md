@@ -147,16 +147,16 @@ echo '{"x":100,"y":200,"pressure":500,"ts":'$(date +%s.%N)',"type":"dot"}' >> /t
 Edit the `GraphNode` configs in `nodes.py`. All provider config classes live in `ai_connect.py`:
 
 ```python
-from ai_connect import AnthropicConfig, OpenAIConfig, OpenRouterConfig, OpenRouterVisionModel
+from ai_connect import AnthropicConfig, OpenAIConfig, OpenRouterConfig, LLMModels
 
 # Anthropic
-config=AnthropicConfig(model="claude-haiku-4-5")
+config = AnthropicConfig(model="claude-haiku-4-5")
 
 # OpenAI
-config=OpenAIConfig(model="gpt-4o")
+config = OpenAIConfig(model="gpt-4o")
 
 # OpenRouter — swap any vision model without changing anything else
-config=OpenRouterConfig(model=OpenRouterVisionModel.GEMINI_3_1_FLASH_LITE_PREVIEW)
+config = OpenRouterConfig(model=LLMModels.GEMINI_3_1_FLASH_LITE_PREVIEW)
 ```
 
 ## LangGraph Multi-Node Pipelines
