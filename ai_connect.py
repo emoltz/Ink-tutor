@@ -43,8 +43,8 @@ class LLMModels(StrEnum):
 @dataclass
 class AnthropicConfig:
     api_key: str | None = None
-    model: str = "claude-sonnet-4-6"
-    max_tokens: int = 100
+    model: str = LLMModels.CLAUDE_SONNET
+    max_tokens: int = 4000
 
     def __post_init__(self):
         if self.api_key is None:
@@ -55,7 +55,7 @@ class AnthropicConfig:
 class OpenAIConfig:
     api_key: str | None = None
     model: str = "gpt-5-mini"
-    max_tokens: int = 100
+    max_tokens: int = 4000
 
     def __post_init__(self):
         if self.api_key is None:

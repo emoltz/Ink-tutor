@@ -71,7 +71,7 @@ def build_graph() -> TutorGraph:
     tutor = GraphNode(
         name="tutor",
         system_prompt=TUTOR_PROMPT,
-        config=AnthropicConfig(model="claude-haiku-4-5"),
+        config=AnthropicConfig(model=LLMModels.CLAUDE_HAIKU_4_5),
         input_formatter=lambda state: (
             "",  # text-only — no image needed
             f"The student is solving: {state['prompt']}\n\n"
